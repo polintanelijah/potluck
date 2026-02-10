@@ -7,43 +7,52 @@ function Header() {
 
     const isActive = (path) => location.pathname === path;
 
-    return (
-        <header className="header">
-            <div className="container header-content">
-                <Link to="/" className="logo">
-                    <img src="/potluck.svg" alt="Potluck logo" />
-                    <span>Potluck</span>
-                </Link>
+    const getInitials = (name) => {
+        if (!name) return '?';
+        return name
+            .split(' ')
+            .map(w => w[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
+    };
 
-                <nav className="nav">
-                    <Link
-                        to="/"
-                        className={`nav-link ${isActive('/') ? 'active' : ''}`}
-                    >
-                        Feed
-                    </Link>
-                    <Link
-                        to="/groups"
-                        className={`nav-link ${isActive('/groups') ? 'active' : ''}`}
-                    >
-                        Groups
-                    </Link>
-                    <Link
-                        to="/new"
-                        className="btn btn-primary"
-                    >
-                        + Add Recipe
-                    </Link>
-                    <button
-                        onClick={logout}
-                        className="btn btn-ghost"
-                        title={`Logged in as ${user?.displayName}`}
-                    >
-                        Logout
-                    </button>
-                </nav>
-            </div>
-        </header>
+    return (
+        <nav className="bottom-nav">
+            <Link to="/" className={`nav-tab ${isActive('/') ? 'active' : ''}`}>
+                <span className="nav-tab-icon">🏠</span>
+                <span>Feed</span>
+            </Link>
+            <Link to="/groups" className={`nav-tab ${isActive('/groups') ? 'active' : ''}`}>
+                <span className="nav-tab-icon">👥</span>
+                <span>Groups</span>
+            </Link>
+            <Link to="/new" className="nav-tab-add" aria-label="Add recipe">
+                +
+            </Link>
+            <button
+                className={`nav-tab ${false ? 'active' : ''}`}
+                onClick={logout}
+                title={`Signed in as ${user?.displayName}. Tap to log out.`}
+            >
+                <span className="nav-tab-icon">
+                    <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        background: 'var(--color-bg-hover)',
+                        fontSize: '0.55rem',
+                        fontWeight: 600
+                    }}>
+                        {getInitials(user?.displayName)}
+                    </span>
+                </span>
+                <span>Profile</span>
+            </button>
+        </nav>
     );
 }
 

@@ -32,12 +32,11 @@ function RecipeDetail() {
     const handleAddComment = async (e) => {
         e.preventDefault();
         if (!newComment.trim()) return;
-
         setSubmittingComment(true);
         try {
             await api.post(`/recipes/${id}/comments`, { content: newComment });
             setNewComment('');
-            fetchRecipe(); // Refresh to get new comment
+            fetchRecipe();
         } catch (err) {
             console.error('Failed to add comment:', err);
         } finally {
@@ -47,7 +46,6 @@ function RecipeDetail() {
 
     const handleDelete = async () => {
         if (!confirm('Are you sure you want to delete this recipe?')) return;
-
         try {
             await api.delete(`/recipes/${id}`);
             navigate('/');
@@ -58,10 +56,9 @@ function RecipeDetail() {
 
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
         });
     };
 
@@ -74,20 +71,17 @@ function RecipeDetail() {
             .slice(0, 2);
     };
 
-    const renderStars = (rating) => {
-        return [...Array(5)].map((_, i) => (
-            <span key={i} className={`star ${i < rating ? 'filled' : ''}`}>
-                ★
-            </span>
-        ));
+    const getScore = (rating) => {
+        if (!rating) return null;
+        return (rating * 2).toFixed(1);
     };
 
     if (loading) {
         return (
             <div className="page">
-                <div className="container" style={{ maxWidth: '800px' }}>
-                    <div className="card loading" style={{ height: '500px' }} />
-                </div>
+                <div className="skeleton" style={{ aspectRatio: '4/3', borderRadius: 'var(--r-lg)' }} />
+                <div className="skeleton mt-md" style={{ height: 24, width: '70%', borderRadius: 4 }} />
+                <div className="skeleton mt-sm" style={{ height: 16, width: '40%', borderRadius: 4 }} />
             </div>
         );
     }
@@ -95,14 +89,12 @@ function RecipeDetail() {
     if (error) {
         return (
             <div className="page">
-                <div className="container" style={{ maxWidth: '800px' }}>
-                    <div className="feed-empty">
-                        <h2>Recipe not found</h2>
-                        <p className="text-secondary mt-sm mb-lg">{error}</p>
-                        <Link to="/" className="btn btn-primary">
-                            Back to Feed
-                        </Link>
-                    </div>
+                <div className="feed-empty">
+                    <h2>Recipe not found</h2>
+                    <p>{error}</p>
+                    <Link to="/" className="btn btn-primary mt-lg">
+                        Back to Feed
+                    </Link>
                 </div>
             </div>
         );
@@ -112,159 +104,131 @@ function RecipeDetail() {
 
     return (
         <div className="page">
-            <div className="container" style={{ maxWidth: '800px' }}>
-                {/* Back button */}
-                <button
-                    className="btn btn-ghost mb-lg"
-                    onClick={() => navigate(-1)}
-                >
-                    ← Back
-                </button>
-
-                <div className="card">
-                    {/* Author header */}
-                    <div className="recipe-card-header">
-                        {recipe.author.avatarUrl ? (
-                            <img
-                                src={recipe.author.avatarUrl}
-                                alt={recipe.author.name}
-                                className="recipe-card-avatar"
-                            />
-                        ) : (
-                            <div className="recipe-card-avatar">
-                                {getInitials(recipe.author.name)}
-                            </div>
-                        )}
-                        <div className="recipe-card-meta">
-                            <div className="recipe-card-author">{recipe.author.name}</div>
-                            <div className="recipe-card-group">
-                                {recipe.group.name} • {formatDate(recipe.createdAt)}
-                            </div>
+            {/* Hero Image */}
+            {recipe.imageUrl ? (
+                <div className="detail-hero">
+                    <img src={recipe.imageUrl} alt={recipe.title} />
+                    <div className="detail-hero-overlay" />
+                    <button className="detail-back" onClick={() => navigate(-1)}>←</button>
+                    {recipe.rating && (
+                        <div className="detail-score">
+                            <div className="score-badge score-badge-lg">{getScore(recipe.rating)}</div>
                         </div>
+                    )}
+                </div>
+            ) : (
+                <button className="btn btn-ghost mb-md" onClick={() => navigate(-1)}>← Back</button>
+            )}
+
+            {/* Content */}
+            <div className="detail-content">
+                <h1 className="detail-title">{recipe.title}</h1>
+
+                {/* Author */}
+                <div className="detail-author">
+                    <div className="detail-author-avatar">
+                        {recipe.author.avatarUrl ? (
+                            <img src={recipe.author.avatarUrl} alt="" />
+                        ) : (
+                            getInitials(recipe.author.name)
+                        )}
+                    </div>
+                    <div>
+                        <div className="detail-author-name">{recipe.author.name}</div>
+                        <div className="detail-author-group">
+                            {recipe.group.name} · {formatDate(recipe.createdAt)}
+                        </div>
+                    </div>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--sp-sm)', alignItems: 'center' }}>
+                        {!recipe.imageUrl && recipe.rating && (
+                            <div className="score-badge score-badge-lg">{getScore(recipe.rating)}</div>
+                        )}
                         {isOwner && (
-                            <button
-                                className="btn btn-ghost"
-                                onClick={handleDelete}
-                                title="Delete recipe"
-                            >
-                                🗑️
+                            <button className="btn btn-ghost btn-danger" onClick={handleDelete} title="Delete">
+                                🗑
                             </button>
                         )}
                     </div>
+                </div>
 
-                    {/* Recipe image */}
-                    {recipe.imageUrl && (
-                        <img
-                            src={recipe.imageUrl}
-                            alt={recipe.title}
-                            className="card-image"
-                            style={{ aspectRatio: '16/9' }}
-                        />
+                {/* Cook date */}
+                {recipe.cookDate && (
+                    <div className="detail-section">
+                        <div className="detail-section-title">Cooked</div>
+                        <p>{formatDate(recipe.cookDate)}</p>
+                    </div>
+                )}
+
+                {/* Notes */}
+                {recipe.notes && (
+                    <div className="detail-section">
+                        <div className="detail-section-title">Notes</div>
+                        <p>{recipe.notes}</p>
+                    </div>
+                )}
+
+                {/* Source */}
+                {(recipe.sourceUrl || recipe.sourceName) && (
+                    <div className="detail-section">
+                        <div className="detail-section-title">Recipe Source</div>
+                        {recipe.sourceUrl ? (
+                            <p>
+                                <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer">
+                                    {recipe.sourceName || 'View original recipe'} →
+                                </a>
+                            </p>
+                        ) : (
+                            <p>{recipe.sourceName}</p>
+                        )}
+                    </div>
+                )}
+
+                {/* Comments */}
+                <div className="comments-section">
+                    <div className="comments-title">
+                        Comments ({recipe.comments?.length || 0})
+                    </div>
+
+                    {recipe.comments && recipe.comments.length > 0 ? (
+                        recipe.comments.map((comment) => (
+                            <div key={comment.id} className="comment-item">
+                                <div className="comment-avatar">
+                                    {comment.author.avatarUrl ? (
+                                        <img src={comment.author.avatarUrl} alt="" />
+                                    ) : (
+                                        getInitials(comment.author.name)
+                                    )}
+                                </div>
+                                <div className="comment-body">
+                                    <div className="comment-author">{comment.author.name}</div>
+                                    <div className="comment-text">{comment.content}</div>
+                                    <div className="comment-date">{formatDate(comment.createdAt)}</div>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-muted text-sm text-center" style={{ padding: 'var(--sp-md) 0' }}>
+                            No comments yet
+                        </p>
                     )}
 
-                    {/* Recipe content */}
-                    <div className="card-content">
-                        <h1 style={{ marginBottom: '0.5rem' }}>{recipe.title}</h1>
-
-                        {recipe.rating && (
-                            <div className="flex items-center gap-sm mb-md">
-                                <div className="recipe-card-rating" style={{ fontSize: '1.5rem' }}>
-                                    {renderStars(recipe.rating)}
-                                </div>
-                                <span className="text-secondary">{recipe.rating}/5</span>
-                            </div>
-                        )}
-
-                        {recipe.cookDate && (
-                            <p className="text-muted mb-md">
-                                Cooked on {formatDate(recipe.cookDate)}
-                            </p>
-                        )}
-
-                        {recipe.notes && (
-                            <div className="mb-lg">
-                                <h3 className="mb-sm">Notes</h3>
-                                <p style={{ whiteSpace: 'pre-wrap' }}>{recipe.notes}</p>
-                            </div>
-                        )}
-
-                        {(recipe.sourceUrl || recipe.sourceName) && (
-                            <div className="mb-lg">
-                                <h3 className="mb-sm">Recipe Source</h3>
-                                {recipe.sourceUrl ? (
-                                    <a
-                                        href={recipe.sourceUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn btn-secondary"
-                                    >
-                                        {recipe.sourceName || 'View Original Recipe'} →
-                                    </a>
-                                ) : (
-                                    <p>{recipe.sourceName}</p>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Comments section */}
-                    <div style={{ borderTop: '1px solid var(--color-border)', padding: 'var(--spacing-lg)' }}>
-                        <h3 className="mb-lg">Comments ({recipe.comments?.length || 0})</h3>
-
-                        {/* Add comment form */}
-                        <form onSubmit={handleAddComment} className="mb-lg">
-                            <div className="flex gap-md">
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    placeholder="Add a comment..."
-                                    value={newComment}
-                                    onChange={(e) => setNewComment(e.target.value)}
-                                    disabled={submittingComment}
-                                />
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary"
-                                    disabled={submittingComment || !newComment.trim()}
-                                >
-                                    {submittingComment ? '...' : 'Post'}
-                                </button>
-                            </div>
-                        </form>
-
-                        {/* Comments list */}
-                        {recipe.comments && recipe.comments.length > 0 ? (
-                            <div className="flex flex-col gap-md">
-                                {recipe.comments.map((comment) => (
-                                    <div key={comment.id} className="flex gap-md" style={{ padding: 'var(--spacing-md)', background: 'var(--color-bg-elevated)', borderRadius: 'var(--radius-md)' }}>
-                                        {comment.author.avatarUrl ? (
-                                            <img
-                                                src={comment.author.avatarUrl}
-                                                alt={comment.author.name}
-                                                className="recipe-card-avatar"
-                                                style={{ width: '32px', height: '32px', fontSize: '0.75rem' }}
-                                            />
-                                        ) : (
-                                            <div className="recipe-card-avatar" style={{ width: '32px', height: '32px', fontSize: '0.75rem' }}>
-                                                {getInitials(comment.author.name)}
-                                            </div>
-                                        )}
-                                        <div style={{ flex: 1 }}>
-                                            <div className="flex justify-between items-center mb-sm">
-                                                <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{comment.author.name}</span>
-                                                <span className="text-muted" style={{ fontSize: '0.75rem' }}>
-                                                    {formatDate(comment.createdAt)}
-                                                </span>
-                                            </div>
-                                            <p style={{ fontSize: '0.875rem' }}>{comment.content}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <p className="text-muted text-center">No comments yet. Be the first to comment!</p>
-                        )}
-                    </div>
+                    <form onSubmit={handleAddComment} className="comment-input-row">
+                        <input
+                            type="text"
+                            className="form-input"
+                            placeholder="Add a comment..."
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                            disabled={submittingComment}
+                        />
+                        <button
+                            type="submit"
+                            className="btn btn-primary"
+                            disabled={submittingComment || !newComment.trim()}
+                        >
+                            {submittingComment ? '...' : 'Post'}
+                        </button>
+                    </form>
                 </div>
             </div>
         </div>

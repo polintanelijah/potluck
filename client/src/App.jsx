@@ -8,14 +8,13 @@ import Groups from './pages/Groups';
 import NewRecipe from './pages/NewRecipe';
 import RecipeDetail from './pages/RecipeDetail';
 
-// Protected route wrapper
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuth();
 
     if (loading) {
         return (
             <div className="page flex items-center justify-center">
-                <div className="loading">Loading...</div>
+                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
             </div>
         );
     }
@@ -27,14 +26,13 @@ function ProtectedRoute({ children }) {
     return children;
 }
 
-// Public route wrapper (redirects to feed if logged in)
 function PublicRoute({ children }) {
     const { user, loading } = useAuth();
 
     if (loading) {
         return (
             <div className="page flex items-center justify-center">
-                <div className="loading">Loading...</div>
+                <div className="skeleton" style={{ width: 40, height: 40, borderRadius: '50%' }} />
             </div>
         );
     }
@@ -50,8 +48,7 @@ function App() {
     const { user } = useAuth();
 
     return (
-        <>
-            {user && <Header />}
+        <div className="app-shell">
             <Routes>
                 <Route path="/login" element={
                     <PublicRoute>
@@ -85,7 +82,8 @@ function App() {
                 } />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
-        </>
+            {user && <Header />}
+        </div>
     );
 }
 

@@ -11,7 +11,6 @@ function NewRecipe() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
 
-    // Form state
     const [title, setTitle] = useState('');
     const [groupId, setGroupId] = useState('');
     const [sourceUrl, setSourceUrl] = useState('');
@@ -45,9 +44,7 @@ function NewRecipe() {
         if (file) {
             setImage(file);
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setImagePreview(reader.result);
-            };
+            reader.onloadend = () => setImagePreview(reader.result);
             reader.readAsDataURL(file);
         }
     };
@@ -60,14 +57,12 @@ function NewRecipe() {
             setError('Please enter a recipe title');
             return;
         }
-
         if (!groupId) {
             setError('Please select a group');
             return;
         }
 
         setSubmitting(true);
-
         try {
             const formData = new FormData();
             formData.append('title', title);
@@ -91,9 +86,8 @@ function NewRecipe() {
     if (loading) {
         return (
             <div className="page">
-                <div className="container" style={{ maxWidth: '640px' }}>
-                    <div className="card loading" style={{ height: '400px' }} />
-                </div>
+                <h1 className="page-title">New Recipe</h1>
+                <div className="skeleton" style={{ aspectRatio: '4/3', borderRadius: 'var(--r-lg)' }} />
             </div>
         );
     }
@@ -101,20 +95,14 @@ function NewRecipe() {
     if (groups.length === 0) {
         return (
             <div className="page">
-                <div className="container" style={{ maxWidth: '640px' }}>
-                    <div className="feed-empty">
-                        <div className="feed-empty-icon">🍳</div>
-                        <h2>No groups yet</h2>
-                        <p className="text-secondary mt-sm mb-lg">
-                            You need to join or create a group before you can share recipes.
-                        </p>
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => navigate('/groups')}
-                        >
-                            Go to Groups
-                        </button>
-                    </div>
+                <h1 className="page-title">New Recipe</h1>
+                <div className="feed-empty">
+                    <div className="feed-empty-icon">🍳</div>
+                    <h2>No groups yet</h2>
+                    <p>Join or create a group before sharing recipes.</p>
+                    <button className="btn btn-primary" onClick={() => navigate('/groups')}>
+                        Go to Groups
+                    </button>
                 </div>
             </div>
         );
@@ -122,169 +110,159 @@ function NewRecipe() {
 
     return (
         <div className="page">
-            <div className="container" style={{ maxWidth: '640px' }}>
-                <h1 className="mb-xl">Share What You Made</h1>
+            <h1 className="page-title">New Recipe</h1>
 
-                <form onSubmit={handleSubmit}>
-                    {/* Image Upload */}
-                    <div className="form-group">
-                        <label className="form-label">Photo (optional)</label>
-                        <div
-                            className={`image-upload ${imagePreview ? 'has-image' : ''}`}
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            {imagePreview ? (
-                                <img src={imagePreview} alt="Preview" />
-                            ) : (
-                                <>
-                                    <div className="image-upload-icon">📸</div>
-                                    <p className="image-upload-text">Click to upload a photo of your dish</p>
-                                </>
-                            )}
-                        </div>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            style={{ display: 'none' }}
-                        />
+            <form onSubmit={handleSubmit}>
+                {/* Image Upload */}
+                <div className="form-group">
+                    <div
+                        className={`image-upload ${imagePreview ? 'has-image' : ''}`}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
+                        {imagePreview ? (
+                            <img src={imagePreview} alt="Preview" />
+                        ) : (
+                            <>
+                                <div className="image-upload-icon">📸</div>
+                                <p className="image-upload-text">Tap to add a photo</p>
+                            </>
+                        )}
                     </div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        style={{ display: 'none' }}
+                    />
+                </div>
 
-                    {/* Title */}
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="title">What did you make? *</label>
-                        <input
-                            id="title"
-                            type="text"
-                            className="form-input"
-                            placeholder="e.g., Butter Chicken"
-                            value={title}
-                            onChange={(e) => setTitle(e.target.value)}
-                            disabled={submitting}
-                        />
+                {/* Title */}
+                <div className="form-group">
+                    <label className="form-label" htmlFor="title">What did you make?</label>
+                    <input
+                        id="title"
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g., Butter Chicken"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        disabled={submitting}
+                    />
+                </div>
+
+                {/* Group Selection */}
+                <div className="form-group">
+                    <label className="form-label" htmlFor="group">Share with</label>
+                    <select
+                        id="group"
+                        className="form-input"
+                        value={groupId}
+                        onChange={(e) => setGroupId(e.target.value)}
+                        disabled={submitting}
+                    >
+                        {groups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                                {group.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Rating — tappable circles */}
+                <div className="form-group">
+                    <label className="form-label">Rating</label>
+                    <div className="rating-input">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                            <button
+                                key={n}
+                                type="button"
+                                className={`rating-dot ${n <= rating ? 'active' : ''}`}
+                                onClick={() => setRating(n === rating ? 0 : n)}
+                                disabled={submitting}
+                            >
+                                {n}
+                            </button>
+                        ))}
                     </div>
+                </div>
 
-                    {/* Group Selection */}
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="group">Share with *</label>
-                        <select
-                            id="group"
-                            className="form-input"
-                            value={groupId}
-                            onChange={(e) => setGroupId(e.target.value)}
-                            disabled={submitting}
-                        >
-                            {groups.map((group) => (
-                                <option key={group.id} value={group.id}>
-                                    {group.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                {/* Source */}
+                <div className="form-group">
+                    <label className="form-label" htmlFor="sourceUrl">Recipe link (optional)</label>
+                    <input
+                        id="sourceUrl"
+                        type="url"
+                        className="form-input"
+                        placeholder="https://..."
+                        value={sourceUrl}
+                        onChange={(e) => setSourceUrl(e.target.value)}
+                        disabled={submitting}
+                    />
+                </div>
 
-                    {/* Rating */}
-                    <div className="form-group">
-                        <label className="form-label">How was it?</label>
-                        <div className="rating-input">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <button
-                                    key={star}
-                                    type="button"
-                                    className={star <= rating ? 'active' : ''}
-                                    onClick={() => setRating(star === rating ? 0 : star)}
-                                    disabled={submitting}
-                                >
-                                    ★
-                                </button>
-                            ))}
-                            {rating > 0 && (
-                                <span className="text-secondary" style={{ marginLeft: '8px' }}>
-                                    {rating}/5
-                                </span>
-                            )}
-                        </div>
-                    </div>
+                <div className="form-group">
+                    <label className="form-label" htmlFor="sourceName">Source name (optional)</label>
+                    <input
+                        id="sourceName"
+                        type="text"
+                        className="form-input"
+                        placeholder="e.g., NYT Cooking"
+                        value={sourceName}
+                        onChange={(e) => setSourceName(e.target.value)}
+                        disabled={submitting}
+                    />
+                </div>
 
-                    {/* Recipe Source */}
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="sourceUrl">Recipe Link (optional)</label>
-                        <input
-                            id="sourceUrl"
-                            type="url"
-                            className="form-input"
-                            placeholder="https://..."
-                            value={sourceUrl}
-                            onChange={(e) => setSourceUrl(e.target.value)}
-                            disabled={submitting}
-                        />
-                    </div>
+                {/* Notes */}
+                <div className="form-group">
+                    <label className="form-label" htmlFor="notes">Notes (optional)</label>
+                    <textarea
+                        id="notes"
+                        className="form-input"
+                        placeholder="Tips, modifications, thoughts..."
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        disabled={submitting}
+                        rows={3}
+                    />
+                </div>
 
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="sourceName">Recipe Source (optional)</label>
-                        <input
-                            id="sourceName"
-                            type="text"
-                            className="form-input"
-                            placeholder="e.g., NYT Cooking, Grandma's Recipe"
-                            value={sourceName}
-                            onChange={(e) => setSourceName(e.target.value)}
-                            disabled={submitting}
-                        />
-                    </div>
+                {/* Cook Date */}
+                <div className="form-group">
+                    <label className="form-label" htmlFor="cookDate">Date cooked (optional)</label>
+                    <input
+                        id="cookDate"
+                        type="date"
+                        className="form-input"
+                        value={cookDate}
+                        onChange={(e) => setCookDate(e.target.value)}
+                        disabled={submitting}
+                        max={new Date().toISOString().split('T')[0]}
+                    />
+                </div>
 
-                    {/* Notes */}
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="notes">Notes & Tips (optional)</label>
-                        <textarea
-                            id="notes"
-                            className="form-input"
-                            placeholder="Any modifications you made, tips for others, or thoughts on the dish..."
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            disabled={submitting}
-                            rows={4}
-                        />
-                    </div>
+                {error && <p className="text-error text-sm mb-md">{error}</p>}
 
-                    {/* Cook Date */}
-                    <div className="form-group">
-                        <label className="form-label" htmlFor="cookDate">When did you cook this? (optional)</label>
-                        <input
-                            id="cookDate"
-                            type="date"
-                            className="form-input"
-                            value={cookDate}
-                            onChange={(e) => setCookDate(e.target.value)}
-                            disabled={submitting}
-                            max={new Date().toISOString().split('T')[0]}
-                        />
-                    </div>
-
-                    {error && (
-                        <p className="form-error mb-md">{error}</p>
-                    )}
-
-                    <div className="flex gap-md">
-                        <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => navigate(-1)}
-                            disabled={submitting}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            className="btn btn-primary btn-lg"
-                            style={{ flex: 1 }}
-                            disabled={submitting}
-                        >
-                            {submitting ? 'Sharing...' : 'Share Recipe'}
-                        </button>
-                    </div>
-                </form>
-            </div>
+                <div className="flex gap-sm">
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => navigate(-1)}
+                        disabled={submitting}
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        className="btn btn-primary btn-lg"
+                        style={{ flex: 1 }}
+                        disabled={submitting}
+                    >
+                        {submitting ? 'Sharing...' : 'Share'}
+                    </button>
+                </div>
+            </form>
         </div>
     );
 }

@@ -9,7 +9,6 @@ function Groups() {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showJoinModal, setShowJoinModal] = useState(false);
 
-    // Form states
     const [newGroupName, setNewGroupName] = useState('');
     const [newGroupDescription, setNewGroupDescription] = useState('');
     const [inviteCode, setInviteCode] = useState('');
@@ -34,12 +33,10 @@ function Groups() {
     const handleCreateGroup = async (e) => {
         e.preventDefault();
         setFormError('');
-
         if (!newGroupName.trim()) {
             setFormError('Please enter a group name');
             return;
         }
-
         setFormLoading(true);
         try {
             await api.post('/groups', {
@@ -60,12 +57,10 @@ function Groups() {
     const handleJoinGroup = async (e) => {
         e.preventDefault();
         setFormError('');
-
         if (!inviteCode.trim()) {
             setFormError('Please enter an invite code');
             return;
         }
-
         setFormLoading(true);
         try {
             await api.post('/groups/join', { inviteCode });
@@ -81,18 +76,16 @@ function Groups() {
 
     const copyInviteCode = (code) => {
         navigator.clipboard.writeText(code);
-        // Could add a toast notification here
     };
 
     if (loading) {
         return (
             <div className="page">
-                <div className="container">
-                    <div className="groups-grid">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="card loading" style={{ height: '180px' }} />
-                        ))}
-                    </div>
+                <h1 className="page-title">Groups</h1>
+                <div className="flex flex-col gap-sm">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="skeleton" style={{ height: 72, borderRadius: 'var(--r-lg)' }} />
+                    ))}
                 </div>
             </div>
         );
@@ -100,69 +93,37 @@ function Groups() {
 
     return (
         <div className="page">
-            <div className="container">
-                <div className="flex justify-between items-center mb-xl">
-                    <h1>Your Groups</h1>
-                    <div className="flex gap-md">
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => setShowJoinModal(true)}
-                        >
-                            Join Group
-                        </button>
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => setShowCreateModal(true)}
-                        >
-                            + Create Group
-                        </button>
-                    </div>
+            <h1 className="page-title">Groups</h1>
+
+            <div className="group-actions">
+                <button className="btn btn-secondary" onClick={() => setShowJoinModal(true)}>
+                    Join Group
+                </button>
+                <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+                    + Create
+                </button>
+            </div>
+
+            {error && <p className="text-error text-sm mb-md">{error}</p>}
+
+            {groups.length === 0 ? (
+                <div className="feed-empty">
+                    <div className="feed-empty-icon">👥</div>
+                    <h2>No groups yet</h2>
+                    <p>Create a group or join one with an invite code.</p>
                 </div>
-
-                {error && (
-                    <p className="form-error mb-lg">{error}</p>
-                )}
-
-                {groups.length === 0 ? (
-                    <div className="feed-empty">
-                        <div className="feed-empty-icon">👥</div>
-                        <h2>No groups yet</h2>
-                        <p className="text-secondary mt-sm mb-lg">
-                            Create a group to start sharing recipes with friends, or join one with an invite code.
-                        </p>
-                        <div className="flex gap-md justify-center">
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => setShowJoinModal(true)}
-                            >
-                                Join with Code
-                            </button>
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => setShowCreateModal(true)}
-                            >
-                                Create Your First Group
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="groups-grid">
-                        {groups.map((group) => (
-                            <div key={group.id} className="card group-card">
-                                <div className="group-card-header">
-                                    <div className="group-card-icon">🍲</div>
-                                    <span className={`badge ${group.role === 'admin' ? 'badge-admin' : ''}`}>
-                                        {group.role === 'admin' ? '👑 Admin' : 'Member'}
-                                    </span>
+            ) : (
+                <div className="group-list">
+                    {groups.map((group) => (
+                        <div key={group.id} className="group-row">
+                            <div className="group-icon">🍲</div>
+                            <div className="group-info">
+                                <div className="group-name">{group.name}</div>
+                                <div className="group-detail">
+                                    {group.memberCount} members · {group.recipeCount} recipes
                                 </div>
-                                <h3 className="card-title">{group.name}</h3>
-                                {group.description && (
-                                    <p className="card-subtitle">{group.description}</p>
-                                )}
-
-                                <div className="invite-code mt-md">
-                                    <span className="text-muted" style={{ fontSize: '0.75rem' }}>Invite:</span>
-                                    <span className="invite-code-value">{group.inviteCode}</span>
+                                <div className="invite-row">
+                                    <span className="invite-code-text">{group.inviteCode}</span>
                                     <button
                                         className="btn btn-ghost btn-icon"
                                         onClick={() => copyInviteCode(group.inviteCode)}
@@ -171,137 +132,121 @@ function Groups() {
                                         📋
                                     </button>
                                 </div>
-
-                                <div className="group-card-stats">
-                                    <div className="group-stat">
-                                        <div className="group-stat-value">{group.memberCount}</div>
-                                        <div className="group-stat-label">Members</div>
-                                    </div>
-                                    <div className="group-stat">
-                                        <div className="group-stat-value">{group.recipeCount}</div>
-                                        <div className="group-stat-label">Recipes</div>
-                                    </div>
-                                </div>
                             </div>
-                        ))}
+                            {group.role === 'admin' && (
+                                <span className="group-badge">Admin</span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Create Group Modal */}
+            <Modal
+                isOpen={showCreateModal}
+                onClose={() => {
+                    setShowCreateModal(false);
+                    setFormError('');
+                    setNewGroupName('');
+                    setNewGroupDescription('');
+                }}
+                title="Create a Group"
+            >
+                <form onSubmit={handleCreateGroup}>
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="groupName">Group Name</label>
+                        <input
+                            id="groupName"
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g., Sunday Dinner Club"
+                            value={newGroupName}
+                            onChange={(e) => setNewGroupName(e.target.value)}
+                            disabled={formLoading}
+                        />
                     </div>
-                )}
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="groupDescription">Description (optional)</label>
+                        <textarea
+                            id="groupDescription"
+                            className="form-input"
+                            placeholder="What's this group about?"
+                            value={newGroupDescription}
+                            onChange={(e) => setNewGroupDescription(e.target.value)}
+                            disabled={formLoading}
+                            rows={3}
+                        />
+                    </div>
+                    {formError && <p className="text-error text-sm mb-md">{formError}</p>}
+                    <div className="flex gap-sm">
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setShowCreateModal(false)}
+                            disabled={formLoading}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="btn btn-primary"
+                            style={{ flex: 1 }}
+                            disabled={formLoading}
+                        >
+                            {formLoading ? 'Creating...' : 'Create Group'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
 
-                {/* Create Group Modal */}
-                <Modal
-                    isOpen={showCreateModal}
-                    onClose={() => {
-                        setShowCreateModal(false);
-                        setFormError('');
-                        setNewGroupName('');
-                        setNewGroupDescription('');
-                    }}
-                    title="Create a Group"
-                >
-                    <form onSubmit={handleCreateGroup}>
-                        <div className="form-group">
-                            <label className="form-label" htmlFor="groupName">Group Name</label>
-                            <input
-                                id="groupName"
-                                type="text"
-                                className="form-input"
-                                placeholder="e.g., Sunday Dinner Club"
-                                value={newGroupName}
-                                onChange={(e) => setNewGroupName(e.target.value)}
-                                disabled={formLoading}
-                            />
-                        </div>
-
-                        <div className="form-group">
-                            <label className="form-label" htmlFor="groupDescription">Description (optional)</label>
-                            <textarea
-                                id="groupDescription"
-                                className="form-input"
-                                placeholder="What's this group about?"
-                                value={newGroupDescription}
-                                onChange={(e) => setNewGroupDescription(e.target.value)}
-                                disabled={formLoading}
-                                rows={3}
-                            />
-                        </div>
-
-                        {formError && (
-                            <p className="form-error mb-md">{formError}</p>
-                        )}
-
-                        <div className="flex gap-md justify-end">
-                            <button
-                                type="button"
-                                className="btn btn-secondary"
-                                onClick={() => setShowCreateModal(false)}
-                                disabled={formLoading}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="btn btn-primary"
-                                disabled={formLoading}
-                            >
-                                {formLoading ? 'Creating...' : 'Create Group'}
-                            </button>
-                        </div>
-                    </form>
-                </Modal>
-
-                {/* Join Group Modal */}
-                <Modal
-                    isOpen={showJoinModal}
-                    onClose={() => {
-                        setShowJoinModal(false);
-                        setFormError('');
-                        setInviteCode('');
-                    }}
-                    title="Join a Group"
-                >
-                    <form onSubmit={handleJoinGroup}>
-                        <p className="text-secondary mb-lg">
-                            Enter the invite code shared by your friend to join their group.
-                        </p>
-
-                        <div className="form-group">
-                            <label className="form-label" htmlFor="inviteCode">Invite Code</label>
-                            <input
-                                id="inviteCode"
-                                type="text"
-                                className="form-input"
-                                placeholder="e.g., A1B2C3D4"
-                                value={inviteCode}
-                                onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-                                disabled={formLoading}
-                                style={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'monospace' }}
-                            />
-                        </div>
-
-                        {formError && (
-                            <p className="form-error mb-md">{formError}</p>
-                        )}
-
-                        <div className="flex gap-md justify-end">
-                            <button
-                                type="button"
-                                className="btn btn-secondary"
-                                onClick={() => setShowJoinModal(false)}
-                                disabled={formLoading}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="btn btn-primary"
-                                disabled={formLoading}
-                            >
-                                {formLoading ? 'Joining...' : 'Join Group'}
-                            </button>
-                        </div>
-                    </form>
-                </Modal>
-            </div>
+            {/* Join Group Modal */}
+            <Modal
+                isOpen={showJoinModal}
+                onClose={() => {
+                    setShowJoinModal(false);
+                    setFormError('');
+                    setInviteCode('');
+                }}
+                title="Join a Group"
+            >
+                <form onSubmit={handleJoinGroup}>
+                    <p className="text-secondary text-sm mb-lg">
+                        Enter the invite code shared by your friend.
+                    </p>
+                    <div className="form-group">
+                        <label className="form-label" htmlFor="inviteCode">Invite Code</label>
+                        <input
+                            id="inviteCode"
+                            type="text"
+                            className="form-input"
+                            placeholder="e.g., A1B2C3D4"
+                            value={inviteCode}
+                            onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                            disabled={formLoading}
+                            style={{ textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'monospace' }}
+                        />
+                    </div>
+                    {formError && <p className="text-error text-sm mb-md">{formError}</p>}
+                    <div className="flex gap-sm">
+                        <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => setShowJoinModal(false)}
+                            disabled={formLoading}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="btn btn-primary"
+                            style={{ flex: 1 }}
+                            disabled={formLoading}
+                        >
+                            {formLoading ? 'Joining...' : 'Join Group'}
+                        </button>
+                    </div>
+                </form>
+            </Modal>
         </div>
     );
 }

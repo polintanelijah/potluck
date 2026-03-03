@@ -59,12 +59,12 @@ export function AuthProvider({ children }) {
         };
     }, []);
 
-    async function signUp(email, password, name) {
+    async function signUp(email, password, name, username) {
         const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
-                data: { name },
+                data: { name, username },
             },
         });
         if (error) throw error;

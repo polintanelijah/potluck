@@ -43,8 +43,8 @@ export default function CookSessionCard({ session, currentUserId }) {
                             {profile?.name}
                         </p>
                     </Link>
-                    <p className="text-xs meta-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
-                        {timeAgo(session.created_at)}
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                        {profile?.username ? `@${profile.username}` : ''} · {timeAgo(session.created_at)}
                     </p>
                 </div>
                 <StarRating rating={session.rating} size="sm" />

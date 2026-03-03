@@ -6,6 +6,7 @@
 -- 1. Profiles table (synced from auth.users)
 CREATE TABLE IF NOT EXISTS profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username TEXT UNIQUE,
   name TEXT NOT NULL DEFAULT '',
   email TEXT,
   avatar_url TEXT,
@@ -121,9 +122,10 @@ CREATE POLICY "Users can delete own comments" ON comments FOR DELETE USING (auth
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, name, email, avatar_url)
+  INSERT INTO public.profiles (id, username, name, email, avatar_url)
   VALUES (
     NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'username', lower(split_part(NEW.email, '@', 1))),
     COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
     NEW.email,
     NULL
@@ -153,3 +155,10 @@ CREATE POLICY "Authenticated users can upload images" ON storage.objects
 
 CREATE POLICY "Users can delete own images" ON storage.objects
   FOR DELETE USING (bucket_id = 'images' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- =============================================
+-- Migration: Add username to existing profiles
+-- Run this ONLY if you already have profiles without usernames
+-- =============================================
+-- ALTER TABLE profiles ADD COLUMN IF NOT EXISTS username TEXT UNIQUE;
+-- UPDATE profiles SET username = lower(split_part(email, '@', 1)) WHERE username IS NULL;

@@ -4,14 +4,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { getSupabase } from '@/lib/supabase';
 
 export default function SignUpPage() {
     const [name, setName] = useState('');
+    const [username, setUsername] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { signUp } = useAuth();
+    const supabase = getSupabase();
     const router = useRouter();
 
     async function handleSubmit(e) {
@@ -23,10 +26,29 @@ export default function SignUpPage() {
             return;
         }
 
+        const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+        if (cleanUsername.length < 3) {
+            setError('Username must be at least 3 characters (letters, numbers, underscores)');
+            return;
+        }
+
         setLoading(true);
 
         try {
-            await signUp(email, password, name);
+            // Check if username is taken
+            const { data: existing } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('username', cleanUsername)
+                .single();
+
+            if (existing) {
+                setError('That username is already taken');
+                setLoading(false);
+                return;
+            }
+
+            await signUp(email, password, name, cleanUsername);
             router.push('/feed');
         } catch (err) {
             setError(err.message || 'Failed to sign up');
@@ -39,7 +61,6 @@ export default function SignUpPage() {
         <div className="min-h-screen flex flex-col items-center justify-center px-6"
             style={{ background: 'var(--color-bg-primary)' }}>
             <div className="w-full max-w-sm animate-fade-in">
-                {/* Logo */}
                 <div className="text-center mb-10">
                     <h1 className="text-4xl mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
                         Potluck
@@ -49,7 +70,6 @@ export default function SignUpPage() {
                     </p>
                 </div>
 
-                {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && (
                         <div className="text-sm px-4 py-3 rounded-md"
@@ -69,6 +89,20 @@ export default function SignUpPage() {
                             onChange={(e) => setName(e.target.value)}
                             required
                             autoComplete="name"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="label" htmlFor="username">Username</label>
+                        <input
+                            id="username"
+                            type="text"
+                            className="input-field"
+                            placeholder="e.g. butterchicken_dave"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                            required
+                            autoComplete="username"
                         />
                     </div>
 

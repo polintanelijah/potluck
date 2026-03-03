@@ -24,14 +24,20 @@ export default function DiscoverPage() {
     }
 
     async function fetchSuggested() {
-        const { data } = await supabase.from('profiles').select('id, name, avatar_url, bio').neq('id', user.id).order('created_at', { ascending: false }).limit(20);
+        const { data } = await supabase.from('profiles').select('id, name, username, avatar_url, bio').neq('id', user.id).order('created_at', { ascending: false }).limit(20);
         setSuggested(data || []);
     }
 
     async function searchUsers(q) {
         if (!q.trim()) { setUsers([]); return; }
         setLoading(true);
-        const { data } = await supabase.from('profiles').select('id, name, avatar_url, bio').ilike('name', `%${q}%`).neq('id', user.id).limit(20);
+        // Search by name OR username
+        const { data } = await supabase
+            .from('profiles')
+            .select('id, name, username, avatar_url, bio')
+            .or(`name.ilike.%${q}%,username.ilike.%${q}%`)
+            .neq('id', user.id)
+            .limit(20);
         setUsers(data || []);
         setLoading(false);
     }
@@ -62,14 +68,12 @@ export default function DiscoverPage() {
             <input
                 type="text"
                 className="input-field mb-6"
-                placeholder="Search by name..."
+                placeholder="Search by name or @username..."
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); searchUsers(e.target.value); }}
             />
 
-            {!query.trim() && (
-                <p className="label mb-3">People on Potluck</p>
-            )}
+            {!query.trim() && <p className="label mb-3">People on Potluck</p>}
 
             {loading ? (
                 <div className="flex justify-center py-8"><div className="spinner" /></div>
@@ -93,16 +97,15 @@ export default function DiscoverPage() {
                                     <div className="avatar">
                                         {u.avatar_url ? (
                                             <img src={u.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                                        ) : (
-                                            u.name?.[0]?.toUpperCase() || '?'
-                                        )}
+                                        ) : (u.name?.[0]?.toUpperCase() || '?')}
                                     </div>
                                 </Link>
                                 <div className="flex-1 min-w-0">
                                     <Link href={`/profile/${u.id}`}>
                                         <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{u.name}</p>
                                     </Link>
-                                    {u.bio && <p className="note-text text-xs truncate">{u.bio}</p>}
+                                    {u.username && <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>@{u.username}</p>}
+                                    {u.bio && <p className="note-text text-xs truncate mt-0.5">{u.bio}</p>}
                                 </div>
                                 <button
                                     onClick={() => toggleFollow(u.id)}

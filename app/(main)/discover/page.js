@@ -15,71 +15,38 @@ export default function DiscoverPage() {
     const supabase = getSupabase();
 
     useEffect(() => {
-        if (user) {
-            fetchFollowing();
-            fetchSuggested();
-        }
+        if (user) { fetchFollowing(); fetchSuggested(); }
     }, [user]);
 
     async function fetchFollowing() {
-        const { data } = await supabase
-            .from('follows')
-            .select('following_id')
-            .eq('follower_id', user.id);
+        const { data } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
         setFollowingIds(new Set(data?.map((f) => f.following_id) || []));
     }
 
     async function fetchSuggested() {
-        const { data } = await supabase
-            .from('profiles')
-            .select('id, name, avatar_url, bio')
-            .neq('id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(20);
+        const { data } = await supabase.from('profiles').select('id, name, avatar_url, bio').neq('id', user.id).order('created_at', { ascending: false }).limit(20);
         setSuggested(data || []);
     }
 
     async function searchUsers(q) {
-        if (!q.trim()) {
-            setUsers([]);
-            return;
-        }
+        if (!q.trim()) { setUsers([]); return; }
         setLoading(true);
-        const { data } = await supabase
-            .from('profiles')
-            .select('id, name, avatar_url, bio')
-            .ilike('name', `%${q}%`)
-            .neq('id', user.id)
-            .limit(20);
+        const { data } = await supabase.from('profiles').select('id, name, avatar_url, bio').ilike('name', `%${q}%`).neq('id', user.id).limit(20);
         setUsers(data || []);
         setLoading(false);
     }
 
     async function toggleFollow(targetId) {
         const isFollowing = followingIds.has(targetId);
-
-        // Optimistic update
         setFollowingIds((prev) => {
             const next = new Set(prev);
-            if (isFollowing) {
-                next.delete(targetId);
-            } else {
-                next.add(targetId);
-            }
+            isFollowing ? next.delete(targetId) : next.add(targetId);
             return next;
         });
-
         if (isFollowing) {
-            await supabase
-                .from('follows')
-                .delete()
-                .eq('follower_id', user.id)
-                .eq('following_id', targetId);
+            await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetId);
         } else {
-            await supabase.from('follows').insert({
-                follower_id: user.id,
-                following_id: targetId,
-            });
+            await supabase.from('follows').insert({ follower_id: user.id, following_id: targetId });
         }
     }
 
@@ -87,35 +54,29 @@ export default function DiscoverPage() {
 
     return (
         <div className="px-4 py-6">
-            <h1 className="text-2xl font-bold mb-6">Discover</h1>
+            <h1 className="text-2xl mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+                Discover
+            </h1>
+            <p className="note-text text-sm mb-6">find friends to cook with</p>
 
-            {/* Search */}
             <input
                 type="text"
                 className="input-field mb-6"
-                placeholder="Search people..."
+                placeholder="Search by name..."
                 value={query}
-                onChange={(e) => {
-                    setQuery(e.target.value);
-                    searchUsers(e.target.value);
-                }}
+                onChange={(e) => { setQuery(e.target.value); searchUsers(e.target.value); }}
             />
 
             {!query.trim() && (
-                <p className="text-xs font-medium uppercase tracking-wider mb-4"
-                    style={{ color: 'var(--color-text-secondary)' }}>
-                    People on Potluck
-                </p>
+                <p className="label mb-3">People on Potluck</p>
             )}
 
             {loading ? (
-                <div className="flex justify-center py-8">
-                    <div className="spinner" />
-                </div>
+                <div className="flex justify-center py-8"><div className="spinner" /></div>
             ) : displayUsers.length === 0 ? (
                 <div className="text-center py-12">
-                    <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                        {query.trim() ? 'No users found' : 'No one else is here yet!'}
+                    <p className="note-text text-sm">
+                        {query.trim() ? 'No one by that name yet' : 'No one else here yet — invite your friends!'}
                     </p>
                 </div>
             ) : (
@@ -125,8 +86,8 @@ export default function DiscoverPage() {
                         return (
                             <div
                                 key={u.id}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl animate-fade-in"
-                                style={{ background: 'var(--color-bg-card)' }}
+                                className="flex items-center gap-3 px-4 py-3 rounded-md animate-fade-in"
+                                style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}
                             >
                                 <Link href={`/profile/${u.id}`}>
                                     <div className="avatar">
@@ -139,18 +100,14 @@ export default function DiscoverPage() {
                                 </Link>
                                 <div className="flex-1 min-w-0">
                                     <Link href={`/profile/${u.id}`}>
-                                        <p className="font-semibold text-sm truncate">{u.name}</p>
+                                        <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{u.name}</p>
                                     </Link>
-                                    {u.bio && (
-                                        <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
-                                            {u.bio}
-                                        </p>
-                                    )}
+                                    {u.bio && <p className="note-text text-xs truncate">{u.bio}</p>}
                                 </div>
                                 <button
                                     onClick={() => toggleFollow(u.id)}
                                     className={isFollowing ? 'btn-secondary' : 'btn-outline'}
-                                    style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}
+                                    style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
                                 >
                                     {isFollowing ? 'Following' : 'Follow'}
                                 </button>

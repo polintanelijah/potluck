@@ -18,14 +18,12 @@ export default function FeedPage() {
     async function fetchFeed() {
         setLoading(true);
 
-        // Get users the current user follows
         const { data: following } = await supabase
             .from('follows')
             .select('following_id')
             .eq('follower_id', user.id);
 
         const followingIds = following?.map((f) => f.following_id) || [];
-        // Include own posts in feed
         followingIds.push(user.id);
 
         const { data } = await supabase
@@ -48,10 +46,11 @@ export default function FeedPage() {
     return (
         <div className="px-4 py-6">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold">
-                    <span style={{ color: 'var(--color-accent)' }}>🍲</span> Potluck
+            <div className="mb-6">
+                <h1 className="text-2xl" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+                    Potluck
                 </h1>
+                <p className="note-text text-xs mt-0.5">what your friends are cooking</p>
             </div>
 
             {/* Feed */}
@@ -61,10 +60,14 @@ export default function FeedPage() {
                 </div>
             ) : sessions.length === 0 ? (
                 <div className="text-center py-16 animate-fade-in">
-                    <p className="text-5xl mb-4">👋</p>
-                    <h2 className="text-lg font-bold mb-2">Your feed is empty</h2>
-                    <p className="text-sm mb-6" style={{ color: 'var(--color-text-secondary)' }}>
-                        Follow some friends to see what they&apos;re cooking, or post your first cook session!
+                    <h2 className="text-lg mb-2" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+                        Your table is empty
+                    </h2>
+                    <p className="note-text text-sm mb-1">
+                        Follow some friends to see what they&apos;re making,
+                    </p>
+                    <p className="note-text text-sm">
+                        or post your first cook session.
                     </p>
                 </div>
             ) : (

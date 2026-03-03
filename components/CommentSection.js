@@ -58,14 +58,13 @@ export default function CommentSection({ sessionId }) {
 
     return (
         <div className="space-y-4">
-            {/* Comments list */}
             {loading ? (
                 <div className="flex justify-center py-4">
-                    <div className="spinner" style={{ width: '1.5rem', height: '1.5rem' }} />
+                    <div className="spinner" />
                 </div>
             ) : comments.length === 0 ? (
-                <p className="text-sm py-2" style={{ color: 'var(--color-text-secondary)' }}>
-                    No comments yet. Be the first!
+                <p className="note-text text-sm py-2">
+                    No comments yet. Be the first to chime in.
                 </p>
             ) : (
                 <div className="space-y-3">
@@ -80,8 +79,10 @@ export default function CommentSection({ sessionId }) {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="font-semibold text-sm">{comment.profiles?.name}</span>
-                                    <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                                    <span className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>
+                                        {comment.profiles?.name}
+                                    </span>
+                                    <span className="meta-label" style={{ textTransform: 'none' }}>
                                         {timeAgo(comment.created_at)}
                                     </span>
                                 </div>
@@ -99,7 +100,7 @@ export default function CommentSection({ sessionId }) {
                 <input
                     type="text"
                     className="input-field flex-1"
-                    placeholder="Add a comment..."
+                    placeholder="Add a note..."
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     style={{ padding: '0.6rem 0.85rem', fontSize: '0.875rem' }}
@@ -108,7 +109,7 @@ export default function CommentSection({ sessionId }) {
                     type="submit"
                     className="btn-primary"
                     disabled={!newComment.trim() || submitting}
-                    style={{ padding: '0.6rem 1rem', fontSize: '0.875rem' }}
+                    style={{ padding: '0.6rem 1rem', fontSize: '0.8rem' }}
                 >
                     {submitting ? '...' : 'Post'}
                 </button>

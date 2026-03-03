@@ -1,7 +1,7 @@
 'use client';
 
 export default function StarRating({ rating, onChange, size = 'md' }) {
-    const sizeClass = size === 'lg' ? 'text-3xl' : size === 'sm' ? 'text-base' : 'text-xl';
+    const sizeClass = size === 'lg' ? 'text-2xl' : size === 'sm' ? 'text-sm' : 'text-lg';
     const interactive = !!onChange;
 
     return (
@@ -12,15 +12,14 @@ export default function StarRating({ rating, onChange, size = 'md' }) {
                     type="button"
                     disabled={!interactive}
                     onClick={() => interactive && onChange(star)}
-                    className="transition-transform duration-150 disabled:cursor-default"
+                    className="transition-transform duration-100 disabled:cursor-default"
                     style={{
                         background: 'none',
                         border: 'none',
-                        padding: '2px',
-                        color: star <= rating ? 'var(--color-star)' : 'var(--color-star-empty)',
-                        transform: interactive ? undefined : 'none',
+                        padding: '1px',
+                        color: star <= rating ? 'var(--color-ochre)' : 'var(--color-star-empty)',
                     }}
-                    onMouseEnter={(e) => interactive && (e.target.style.transform = 'scale(1.2)')}
+                    onMouseEnter={(e) => interactive && (e.target.style.transform = 'scale(1.15)')}
                     onMouseLeave={(e) => interactive && (e.target.style.transform = 'scale(1)')}
                 >
                     ★

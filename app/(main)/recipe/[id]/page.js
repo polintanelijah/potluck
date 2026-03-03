@@ -14,20 +14,13 @@ export default function RecipeDetailPage({ params }) {
     const { user } = useAuth();
     const supabase = getSupabase();
 
-    useEffect(() => {
-        if (id) fetchRecipe();
-    }, [id]);
+    useEffect(() => { if (id) fetchRecipe(); }, [id]);
 
     async function fetchRecipe() {
         const [recipeRes, sessionsRes] = await Promise.all([
             supabase.from('recipes').select('*, profiles:created_by(name)').eq('id', id).single(),
-            supabase
-                .from('cook_sessions')
-                .select('*, profiles:user_id(id, name, avatar_url)')
-                .eq('recipe_id', id)
-                .order('created_at', { ascending: false }),
+            supabase.from('cook_sessions').select('*, profiles:user_id(id, name, avatar_url)').eq('recipe_id', id).order('created_at', { ascending: false }),
         ]);
-
         setRecipe(recipeRes.data);
         setSessions(sessionsRes.data || []);
         setLoading(false);
@@ -50,128 +43,88 @@ export default function RecipeDetailPage({ params }) {
         return `${Math.floor(days / 7)}w ago`;
     }
 
-    if (loading) {
-        return (
-            <div className="flex justify-center py-16">
-                <div className="spinner" />
-            </div>
-        );
-    }
-
-    if (!recipe) {
-        return (
-            <div className="text-center py-16">
-                <p style={{ color: 'var(--color-text-secondary)' }}>Recipe not found</p>
-            </div>
-        );
-    }
+    if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
+    if (!recipe) return <div className="text-center py-16"><p className="note-text">Recipe not found</p></div>;
 
     return (
         <div className="px-4 py-6 animate-fade-in">
-            {/* Back */}
-            <Link href="/feed" className="flex items-center gap-1 text-sm mb-4" style={{ color: 'var(--color-accent)' }}>
-                ← Back
-            </Link>
+            <Link href="/feed" className="flex items-center gap-1 text-sm mb-4"
+                style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}>← back</Link>
 
-            {/* Recipe image */}
             {recipe.image_url && (
-                <div className="rounded-xl overflow-hidden mb-4" style={{ maxHeight: '300px' }}>
+                <div className="rounded-md overflow-hidden mb-4" style={{ maxHeight: '280px' }}>
                     <img src={recipe.image_url} alt={recipe.title} className="w-full object-cover" />
                 </div>
             )}
 
-            {/* Title */}
-            <h1 className="text-2xl font-bold mb-1">{recipe.title}</h1>
-            <p className="text-xs mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-                Added by {recipe.profiles?.name || 'Unknown'}
-            </p>
+            <h1 className="text-2xl mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{recipe.title}</h1>
+            <p className="meta-label mb-4" style={{ textTransform: 'none' }}>added by {recipe.profiles?.name || 'unknown'}</p>
 
             {/* Stats */}
-            <div className="flex items-center gap-4 mb-4 px-4 py-3 rounded-xl" style={{ background: 'var(--color-bg-card)' }}>
+            <div className="flex items-center gap-4 mb-4 px-4 py-3 rounded-md" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                 <div className="text-center flex-1">
-                    <p className="font-bold text-lg">{sessions.length}</p>
-                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Times cooked</p>
+                    <p className="font-bold text-lg" style={{ fontFamily: "'DM Mono', monospace" }}>{sessions.length}</p>
+                    <p className="meta-label">times cooked</p>
                 </div>
                 <div className="w-px h-8" style={{ background: 'var(--color-border)' }} />
                 <div className="text-center flex-1">
-                    <p className="font-bold text-lg">{avgRating()}</p>
-                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Avg rating</p>
+                    <p className="font-bold text-lg" style={{ fontFamily: "'DM Mono', monospace" }}>{avgRating()}</p>
+                    <p className="meta-label">avg rating</p>
                 </div>
             </div>
 
-            {/* URL */}
             {recipe.url && (
-                <a
-                    href={recipe.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm font-medium mb-4 px-4 py-3 rounded-xl"
-                    style={{ background: 'var(--color-accent-glow)', color: 'var(--color-accent)', border: '1px solid var(--color-accent)' }}
-                >
-                    🔗 View original recipe
+                <a href={recipe.url} target="_blank" rel="noopener noreferrer"
+                    className="block text-sm mb-4 px-4 py-3 rounded-md"
+                    style={{ background: 'var(--color-ochre-glow)', color: 'var(--color-ochre)', border: '1px solid var(--color-ochre)', fontFamily: "'DM Mono', monospace" }}>
+                    ↗ view original recipe
                 </a>
             )}
 
-            {/* Ingredients */}
             {recipe.ingredients && (
                 <div className="mb-4">
-                    <h2 className="font-bold text-sm mb-2">Ingredients</h2>
-                    <div className="px-4 py-3 rounded-xl text-sm whitespace-pre-wrap leading-relaxed"
-                        style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+                    <h2 className="text-sm mb-2" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>Ingredients</h2>
+                    <div className="px-4 py-3 rounded-md text-sm whitespace-pre-wrap leading-relaxed"
+                        style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border-light)' }}>
                         {recipe.ingredients}
                     </div>
                 </div>
             )}
 
-            {/* Instructions */}
             {recipe.instructions && (
                 <div className="mb-6">
-                    <h2 className="font-bold text-sm mb-2">Instructions</h2>
-                    <div className="px-4 py-3 rounded-xl text-sm whitespace-pre-wrap leading-relaxed"
-                        style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)' }}>
+                    <h2 className="text-sm mb-2" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>Instructions</h2>
+                    <div className="px-4 py-3 rounded-md text-sm whitespace-pre-wrap leading-relaxed"
+                        style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border-light)' }}>
                         {recipe.instructions}
                     </div>
                 </div>
             )}
 
-            {/* Cook sessions for this recipe */}
-            <h2 className="font-bold text-sm mb-3">
+            <h2 className="text-sm mb-3" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>
                 Who&apos;s cooked this ({sessions.length})
             </h2>
 
             {sessions.length === 0 ? (
-                <p className="text-sm py-4 text-center" style={{ color: 'var(--color-text-secondary)' }}>
-                    No one has cooked this yet
-                </p>
+                <p className="note-text text-sm py-4 text-center">No one has tried this yet — be the first!</p>
             ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                     {sessions.map((s) => (
-                        <Link
-                            key={s.id}
-                            href={`/session/${s.id}`}
-                            className="flex items-center gap-3 px-4 py-3 rounded-xl"
-                            style={{ background: 'var(--color-bg-card)' }}
-                        >
+                        <Link key={s.id} href={`/session/${s.id}`}
+                            className="flex items-center gap-3 px-4 py-3 rounded-md"
+                            style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
                             <div className="avatar" style={{ width: '2rem', height: '2rem', fontSize: '0.75rem' }}>
                                 {s.profiles?.avatar_url ? (
                                     <img src={s.profiles.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                                ) : (
-                                    s.profiles?.name?.[0]?.toUpperCase() || '?'
-                                )}
+                                ) : (s.profiles?.name?.[0]?.toUpperCase() || '?')}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm">{s.profiles?.name}</p>
-                                {s.notes && (
-                                    <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
-                                        {s.notes}
-                                    </p>
-                                )}
+                                <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{s.profiles?.name}</p>
+                                {s.notes && <p className="note-text text-xs truncate">{s.notes}</p>}
                             </div>
                             <div className="flex items-center gap-2">
                                 <StarRating rating={s.rating} size="sm" />
-                                <span className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                                    {timeAgo(s.created_at)}
-                                </span>
+                                <span className="meta-label" style={{ textTransform: 'none' }}>{timeAgo(s.created_at)}</span>
                             </div>
                         </Link>
                     ))}

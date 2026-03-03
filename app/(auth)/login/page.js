@@ -34,19 +34,19 @@ export default function LoginPage() {
             <div className="w-full max-w-sm animate-fade-in">
                 {/* Logo */}
                 <div className="text-center mb-10">
-                    <h1 className="text-4xl font-bold mb-2">
-                        <span style={{ color: 'var(--color-accent)' }}>🍲</span> Potluck
+                    <h1 className="text-4xl mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+                        Potluck
                     </h1>
-                    <p style={{ color: 'var(--color-text-secondary)' }} className="text-sm">
-                        Share what you&apos;re actually cooking
+                    <p className="note-text text-sm">
+                        share what you&apos;re actually cooking
                     </p>
                 </div>
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && (
-                        <div className="text-sm px-4 py-3 rounded-xl"
-                            style={{ background: 'rgba(244,63,94,0.1)', color: 'var(--color-danger)', border: '1px solid rgba(244,63,94,0.2)' }}>
+                        <div className="text-sm px-4 py-3 rounded-md"
+                            style={{ background: 'rgba(192,71,42,0.08)', color: 'var(--color-danger)', border: '1px solid rgba(192,71,42,0.15)' }}>
                             {error}
                         </div>
                     )}

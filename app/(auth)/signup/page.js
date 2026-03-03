@@ -41,19 +41,19 @@ export default function SignUpPage() {
             <div className="w-full max-w-sm animate-fade-in">
                 {/* Logo */}
                 <div className="text-center mb-10">
-                    <h1 className="text-4xl font-bold mb-2">
-                        <span style={{ color: 'var(--color-accent)' }}>🍲</span> Potluck
+                    <h1 className="text-4xl mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+                        Potluck
                     </h1>
-                    <p style={{ color: 'var(--color-text-secondary)' }} className="text-sm">
-                        Join your friends in the kitchen
+                    <p className="note-text text-sm">
+                        join your friends in the kitchen
                     </p>
                 </div>
 
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {error && (
-                        <div className="text-sm px-4 py-3 rounded-xl"
-                            style={{ background: 'rgba(244,63,94,0.1)', color: 'var(--color-danger)', border: '1px solid rgba(244,63,94,0.2)' }}>
+                        <div className="text-sm px-4 py-3 rounded-md"
+                            style={{ background: 'rgba(192,71,42,0.08)', color: 'var(--color-danger)', border: '1px solid rgba(192,71,42,0.15)' }}>
                             {error}
                         </div>
                     )}
@@ -64,7 +64,7 @@ export default function SignUpPage() {
                             id="name"
                             type="text"
                             className="input-field"
-                            placeholder="Your name"
+                            placeholder="What your friends call you"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             required
@@ -105,7 +105,7 @@ export default function SignUpPage() {
                         className="btn-primary w-full"
                         disabled={loading}
                     >
-                        {loading ? 'Creating account...' : 'Create Account'}
+                        {loading ? 'Creating account...' : 'Join the Table'}
                     </button>
                 </form>
 

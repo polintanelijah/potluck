@@ -26,8 +26,8 @@ export default function CookSessionCard({ session, currentUserId }) {
 
     return (
         <div className="glass-card overflow-hidden animate-slide-up">
-            {/* Header — user info */}
-            <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+            {/* Header — friend's name is front and center */}
+            <div className="flex items-center gap-3 px-4 pt-4 pb-2">
                 <Link href={profile?.id === currentUserId ? '/profile' : `/profile/${profile?.id}`}>
                     <div className="avatar">
                         {profile?.avatar_url ? (
@@ -39,19 +39,30 @@ export default function CookSessionCard({ session, currentUserId }) {
                 </Link>
                 <div className="flex-1 min-w-0">
                     <Link href={profile?.id === currentUserId ? '/profile' : `/profile/${profile?.id}`}>
-                        <p className="font-semibold text-sm truncate">{profile?.name}</p>
+                        <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+                            {profile?.name}
+                        </p>
                     </Link>
-                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                    <p className="text-xs meta-label" style={{ textTransform: 'none', letterSpacing: 'normal' }}>
                         {timeAgo(session.created_at)}
                     </p>
                 </div>
                 <StarRating rating={session.rating} size="sm" />
             </div>
 
-            {/* Image */}
+            {/* Recipe title — always visible at a glance */}
+            <div className="px-4 pb-2">
+                <Link href={`/recipe/${recipe?.id}`}>
+                    <h3 className="text-lg font-bold" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
+                        {recipe?.title}
+                    </h3>
+                </Link>
+            </div>
+
+            {/* Image — secondary to the text */}
             {session.image_url && (
                 <Link href={`/session/${session.id}`}>
-                    <div className="relative w-full" style={{ aspectRatio: '4/3' }}>
+                    <div className="relative w-full mx-4 rounded-md overflow-hidden" style={{ aspectRatio: '4/3', width: 'calc(100% - 2rem)' }}>
                         <img
                             src={session.image_url}
                             alt={recipe?.title || 'Cook session'}
@@ -61,17 +72,11 @@ export default function CookSessionCard({ session, currentUserId }) {
                 </Link>
             )}
 
-            {/* Content */}
+            {/* Notes — the honest review */}
             <div className="px-4 py-3 space-y-2">
-                {/* Recipe title */}
-                <Link href={`/recipe/${recipe?.id}`}>
-                    <h3 className="font-bold text-base hover:underline">{recipe?.title}</h3>
-                </Link>
-
-                {/* Notes */}
                 {session.notes && (
-                    <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-                        {session.notes}
+                    <p className="text-sm leading-relaxed note-text">
+                        &ldquo;{session.notes}&rdquo;
                     </p>
                 )}
 
@@ -81,20 +86,16 @@ export default function CookSessionCard({ session, currentUserId }) {
                         href={recipe.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-medium inline-flex items-center gap-1"
-                        style={{ color: 'var(--color-accent)' }}
+                        className="text-xs inline-flex items-center gap-1"
+                        style={{ color: 'var(--color-sage)', fontFamily: "'DM Mono', monospace" }}
                     >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                        </svg>
-                        View recipe source
+                        ↗ recipe source
                     </a>
                 )}
 
-                {/* Actions */}
-                <div className="flex items-center gap-4 pt-1"
-                    style={{ borderTop: '1px solid var(--color-border)' }}>
+                {/* Actions — subtle, not shouty */}
+                <div className="flex items-center gap-4 pt-2"
+                    style={{ borderTop: '1px solid var(--color-border-light)' }}>
                     <LikeButton
                         sessionId={session.id}
                         initialLiked={isLiked}
@@ -103,12 +104,14 @@ export default function CookSessionCard({ session, currentUserId }) {
                     <Link
                         href={`/session/${session.id}`}
                         className="flex items-center gap-1.5"
-                        style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}
+                        style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}
                     >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                         </svg>
-                        {commentCount > 0 && <span className="font-medium text-sm">{commentCount}</span>}
+                        {commentCount > 0 && (
+                            <span className="text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{commentCount}</span>
+                        )}
                     </Link>
                 </div>
             </div>

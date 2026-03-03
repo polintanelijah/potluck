@@ -16,31 +16,17 @@ export default function OtherProfilePage({ params }) {
     const { user } = useAuth();
     const supabase = getSupabase();
 
-    useEffect(() => {
-        if (user && id) fetchAll();
-    }, [user, id]);
+    useEffect(() => { if (user && id) fetchAll(); }, [user, id]);
 
     async function fetchAll() {
         setLoading(true);
-
         const [profileRes, sessionsRes, followersRes, followingRes, followCheckRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', id).single(),
-            supabase
-                .from('cook_sessions')
-                .select(`
-          *,
-          profiles:user_id(id, name, avatar_url),
-          recipes:recipe_id(id, title, url, image_url),
-          likes(user_id),
-          comments(count)
-        `)
-                .eq('user_id', id)
-                .order('created_at', { ascending: false }),
+            supabase.from('cook_sessions').select(`*, profiles:user_id(id, name, avatar_url), recipes:recipe_id(id, title, url, image_url), likes(user_id), comments(count)`).eq('user_id', id).order('created_at', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id),
             supabase.from('follows').select('follower_id').eq('follower_id', user.id).eq('following_id', id).single(),
         ]);
-
         setProfileData(profileRes.data);
         setSessions(sessionsRes.data || []);
         setFollowerCount(followersRes.count || 0);
@@ -53,7 +39,6 @@ export default function OtherProfilePage({ params }) {
         const wasFollowing = isFollowing;
         setIsFollowing(!wasFollowing);
         setFollowerCount((c) => (wasFollowing ? c - 1 : c + 1));
-
         if (wasFollowing) {
             await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', id);
         } else {
@@ -61,25 +46,11 @@ export default function OtherProfilePage({ params }) {
         }
     }
 
-    if (loading) {
-        return (
-            <div className="flex justify-center py-16">
-                <div className="spinner" />
-            </div>
-        );
-    }
-
-    if (!profileData) {
-        return (
-            <div className="text-center py-16">
-                <p style={{ color: 'var(--color-text-secondary)' }}>User not found</p>
-            </div>
-        );
-    }
+    if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
+    if (!profileData) return <div className="text-center py-16"><p className="note-text">User not found</p></div>;
 
     return (
         <div className="px-4 py-6">
-            {/* Profile header */}
             <div className="flex items-start gap-4 mb-6">
                 <div className="avatar avatar-lg">
                     {profileData.avatar_url ? (
@@ -89,55 +60,37 @@ export default function OtherProfilePage({ params }) {
                     )}
                 </div>
                 <div className="flex-1">
-                    <h2 className="text-xl font-bold">{profileData.name}</h2>
-                    {profileData.bio && (
-                        <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                            {profileData.bio}
-                        </p>
-                    )}
-                    <div className="flex gap-4 mt-3">
-                        <div className="text-center">
-                            <p className="font-bold text-sm">{sessions.length}</p>
-                            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Cooks</p>
+                    <h2 className="text-xl" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{profileData.name}</h2>
+                    {profileData.bio && <p className="note-text text-sm mt-1">{profileData.bio}</p>}
+                    <div className="flex gap-5 mt-3">
+                        <div>
+                            <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{sessions.length}</p>
+                            <p className="meta-label">cooks</p>
                         </div>
-                        <div className="text-center">
-                            <p className="font-bold text-sm">{followerCount}</p>
-                            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Followers</p>
+                        <div>
+                            <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{followerCount}</p>
+                            <p className="meta-label">followers</p>
                         </div>
-                        <div className="text-center">
-                            <p className="font-bold text-sm">{followingCount}</p>
-                            <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Following</p>
+                        <div>
+                            <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{followingCount}</p>
+                            <p className="meta-label">following</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Follow button */}
-            <button
-                onClick={toggleFollow}
-                className={`w-full mb-6 ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}
-            >
+            <button onClick={toggleFollow} className={`w-full mb-6 ${isFollowing ? 'btn-secondary' : 'btn-primary'}`}>
                 {isFollowing ? 'Following' : 'Follow'}
             </button>
 
-            {/* Cook sessions */}
-            <p className="text-xs font-medium uppercase tracking-wider mb-4"
-                style={{ color: 'var(--color-text-secondary)' }}>
-                Cook Sessions
-            </p>
+            <p className="label mb-3">Cook log</p>
 
             {sessions.length === 0 ? (
-                <p className="text-center py-8 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                    No cook sessions yet
-                </p>
+                <p className="text-center py-8 note-text text-sm">No cook sessions yet</p>
             ) : (
                 <div className="space-y-4">
                     {sessions.map((session) => (
-                        <CookSessionCard
-                            key={session.id}
-                            session={session}
-                            currentUserId={user.id}
-                        />
+                        <CookSessionCard key={session.id} session={session} currentUserId={user.id} />
                     ))}
                 </div>
             )}

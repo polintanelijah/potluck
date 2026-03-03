@@ -21,6 +21,11 @@ export function AuthProvider({ children }) {
     }
 
     useEffect(() => {
+        // Safety timeout — never stay loading forever
+        const timeout = setTimeout(() => {
+            setLoading(false);
+        }, 5000);
+
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setUser(session?.user ?? null);
@@ -28,6 +33,11 @@ export function AuthProvider({ children }) {
                 fetchProfile(session.user.id);
             }
             setLoading(false);
+            clearTimeout(timeout);
+        }).catch((err) => {
+            console.error('Auth session error:', err);
+            setLoading(false);
+            clearTimeout(timeout);
         });
 
         // Listen for auth changes
@@ -43,7 +53,10 @@ export function AuthProvider({ children }) {
             }
         );
 
-        return () => subscription.unsubscribe();
+        return () => {
+            subscription.unsubscribe();
+            clearTimeout(timeout);
+        };
     }, []);
 
     async function signUp(email, password, name) {

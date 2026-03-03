@@ -19,30 +19,16 @@ export default function ProfilePage() {
     const { user, signOut, refreshProfile } = useAuth();
     const supabase = getSupabase();
 
-    useEffect(() => {
-        if (user) fetchAll();
-    }, [user]);
+    useEffect(() => { if (user) fetchAll(); }, [user]);
 
     async function fetchAll() {
         setLoading(true);
-
         const [profileRes, sessionsRes, followersRes, followingRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
-            supabase
-                .from('cook_sessions')
-                .select(`
-          *,
-          profiles:user_id(id, name, avatar_url),
-          recipes:recipe_id(id, title, url, image_url),
-          likes(user_id),
-          comments(count)
-        `)
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false }),
+            supabase.from('cook_sessions').select(`*, profiles:user_id(id, name, avatar_url), recipes:recipe_id(id, title, url, image_url), likes(user_id), comments(count)`).eq('user_id', user.id).order('created_at', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', user.id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', user.id),
         ]);
-
         setProfileData(profileRes.data);
         setEditName(profileRes.data?.name || '');
         setEditBio(profileRes.data?.bio || '');
@@ -54,23 +40,14 @@ export default function ProfilePage() {
 
     async function saveProfile() {
         setSaving(true);
-        await supabase
-            .from('profiles')
-            .update({ name: editName.trim(), bio: editBio.trim() })
-            .eq('id', user.id);
+        await supabase.from('profiles').update({ name: editName.trim(), bio: editBio.trim() }).eq('id', user.id);
         setEditMode(false);
         setSaving(false);
         await refreshProfile();
         fetchAll();
     }
 
-    if (loading) {
-        return (
-            <div className="flex justify-center py-16">
-                <div className="spinner" />
-            </div>
-        );
-    }
+    if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
 
     return (
         <div className="px-4 py-6">
@@ -86,49 +63,31 @@ export default function ProfilePage() {
                 <div className="flex-1">
                     {editMode ? (
                         <div className="space-y-2">
-                            <input
-                                type="text"
-                                className="input-field"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                placeholder="Your name"
-                            />
-                            <textarea
-                                className="input-field"
-                                value={editBio}
-                                onChange={(e) => setEditBio(e.target.value)}
-                                placeholder="Write a bio..."
-                                rows={2}
-                            />
+                            <input type="text" className="input-field" value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Your name" />
+                            <textarea className="input-field" value={editBio} onChange={(e) => setEditBio(e.target.value)} placeholder="A few words about you..." rows={2} />
                             <div className="flex gap-2">
                                 <button onClick={saveProfile} className="btn-primary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }} disabled={saving}>
                                     {saving ? 'Saving...' : 'Save'}
                                 </button>
-                                <button onClick={() => setEditMode(false)} className="btn-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}>
-                                    Cancel
-                                </button>
+                                <button onClick={() => setEditMode(false)} className="btn-secondary" style={{ padding: '0.4rem 0.85rem', fontSize: '0.8rem' }}>Cancel</button>
                             </div>
                         </div>
                     ) : (
                         <>
-                            <h2 className="text-xl font-bold">{profileData?.name}</h2>
-                            {profileData?.bio && (
-                                <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-                                    {profileData.bio}
-                                </p>
-                            )}
-                            <div className="flex gap-4 mt-3">
-                                <div className="text-center">
-                                    <p className="font-bold text-sm">{sessions.length}</p>
-                                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Cooks</p>
+                            <h2 className="text-xl" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{profileData?.name}</h2>
+                            {profileData?.bio && <p className="note-text text-sm mt-1">{profileData.bio}</p>}
+                            <div className="flex gap-5 mt-3">
+                                <div>
+                                    <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{sessions.length}</p>
+                                    <p className="meta-label">cooks</p>
                                 </div>
-                                <div className="text-center">
-                                    <p className="font-bold text-sm">{followerCount}</p>
-                                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Followers</p>
+                                <div>
+                                    <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{followerCount}</p>
+                                    <p className="meta-label">followers</p>
                                 </div>
-                                <div className="text-center">
-                                    <p className="font-bold text-sm">{followingCount}</p>
-                                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Following</p>
+                                <div>
+                                    <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{followingCount}</p>
+                                    <p className="meta-label">following</p>
                                 </div>
                             </div>
                         </>
@@ -139,36 +98,24 @@ export default function ProfilePage() {
             {/* Actions */}
             {!editMode && (
                 <div className="flex gap-2 mb-6">
-                    <button onClick={() => setEditMode(true)} className="btn-secondary flex-1" style={{ fontSize: '0.85rem' }}>
-                        Edit Profile
-                    </button>
-                    <button onClick={signOut} className="btn-secondary" style={{ fontSize: '0.85rem', color: 'var(--color-danger)' }}>
-                        Log Out
-                    </button>
+                    <button onClick={() => setEditMode(true)} className="btn-secondary flex-1" style={{ fontSize: '0.8rem' }}>Edit Profile</button>
+                    <button onClick={signOut} className="btn-secondary" style={{ fontSize: '0.8rem', color: 'var(--color-accent)' }}>Log Out</button>
                 </div>
             )}
 
             {/* Cook sessions */}
-            <p className="text-xs font-medium uppercase tracking-wider mb-4"
-                style={{ color: 'var(--color-text-secondary)' }}>
-                Your Cook Sessions
-            </p>
+            <p className="label mb-3">Your cook log</p>
 
             {sessions.length === 0 ? (
                 <div className="text-center py-8">
-                    <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
-                        No cook sessions yet.{' '}
-                        <Link href="/post" style={{ color: 'var(--color-accent)' }}>Post your first!</Link>
+                    <p className="note-text text-sm">
+                        Nothing logged yet. <Link href="/post" style={{ color: 'var(--color-accent)' }}>Cook something!</Link>
                     </p>
                 </div>
             ) : (
                 <div className="space-y-4">
                     {sessions.map((session) => (
-                        <CookSessionCard
-                            key={session.id}
-                            session={session}
-                            currentUserId={user.id}
-                        />
+                        <CookSessionCard key={session.id} session={session} currentUserId={user.id} />
                     ))}
                 </div>
             )}

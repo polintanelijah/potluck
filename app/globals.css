@@ -1,35 +1,47 @@
 @import "tailwindcss";
 
 @theme {
-  /* Color palette — rich dark theme */
-  --color-bg-primary: #0a0a0f;
-  --color-bg-secondary: #12121a;
-  --color-bg-card: #1a1a26;
-  --color-bg-elevated: #222233;
-  --color-bg-input: #16161f;
+  /* Worn Cookbook — warm, tactile, lived-in */
 
-  --color-border: #2a2a3d;
-  --color-border-light: #33334d;
+  /* Backgrounds */
+  --color-bg-primary: #FAF6F1;
+  --color-bg-secondary: #F3ECE4;
+  --color-bg-card: #FFF9F4;
+  --color-bg-elevated: #FFFDFB;
+  --color-bg-input: #F5EFE8;
 
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #9090a8;
-  --color-text-muted: #6060778;
+  /* Borders */
+  --color-border: #E0D5C7;
+  --color-border-light: #EBE3D8;
 
-  --color-accent: #ff6b35;
-  --color-accent-light: #ff8c5a;
-  --color-accent-dark: #e55a28;
-  --color-accent-glow: rgba(255, 107, 53, 0.15);
+  /* Text */
+  --color-text-primary: #2C2416;
+  --color-text-secondary: #7A6E5D;
+  --color-text-muted: #A89B8A;
 
-  --color-success: #34d399;
-  --color-danger: #f43f5e;
-  --color-warning: #fbbf24;
+  /* Rust — primary action, appetite, energy */
+  --color-accent: #C0472A;
+  --color-accent-light: #D4614A;
+  --color-accent-dark: #A33B22;
+  --color-accent-glow: rgba(192, 71, 42, 0.1);
 
-  --color-star: #fbbf24;
-  --color-star-empty: #3a3a50;
+  /* Ochre — warmth, ratings, stars */
+  --color-ochre: #C89648;
+  --color-ochre-light: #D4A85E;
+  --color-ochre-glow: rgba(200, 150, 72, 0.12);
 
-  /* Glassmorphism */
-  --glass-bg: rgba(26, 26, 38, 0.75);
-  --glass-border: rgba(255, 255, 255, 0.06);
+  /* Sage — health, fresh, subtle */
+  --color-sage: #6B8F71;
+  --color-sage-light: #8BAE8F;
+
+  /* Functional */
+  --color-success: #6B8F71;
+  --color-danger: #C0472A;
+  --color-warning: #C89648;
+
+  /* Stars */
+  --color-star: #C89648;
+  --color-star-empty: #DDD5C8;
 }
 
 /* Base */
@@ -43,12 +55,34 @@ html {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Literata', Georgia, 'Times New Roman', serif;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+/* Typography */
+h1,
+h2,
+h3 {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+}
+
+/* Mono labels — handstamped feel */
+.label,
+.meta-label {
+  font-family: 'DM Mono', 'Courier New', monospace;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
 }
 
 /* Safe area for mobile bottom nav */
@@ -56,93 +90,108 @@ body {
   padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* Glass card */
+/* Card — recipe index card feel */
 .glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-  border-radius: 1rem;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px rgba(44, 36, 22, 0.06), 0 0 0 0.5px rgba(44, 36, 22, 0.03);
 }
 
-/* Accent gradient */
+/* Accent gradient — subtle warm */
 .accent-gradient {
   background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light));
 }
 
-/* Button base */
+/* Button — primary (rust) */
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-accent), var(--color-accent-light));
-  color: white;
-  font-weight: 600;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.75rem;
+  background: var(--color-accent);
+  color: #FFF9F4;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  padding: 0.7rem 1.5rem;
+  border-radius: 0.375rem;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.95rem;
+  transition: all 0.15s ease;
 }
+
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 20px var(--color-accent-glow);
+  background: var(--color-accent-dark);
 }
+
 .btn-primary:active {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
+
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
 
+/* Button — secondary */
 .btn-secondary {
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-primary);
   color: var(--color-text-primary);
-  font-weight: 600;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.75rem;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  padding: 0.7rem 1.5rem;
+  border-radius: 0.375rem;
   border: 1px solid var(--color-border);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.95rem;
-}
-.btn-secondary:hover {
-  background: var(--color-border);
+  transition: all 0.15s ease;
 }
 
+.btn-secondary:hover {
+  background: var(--color-bg-secondary);
+}
+
+/* Button — outline */
 .btn-outline {
   background: transparent;
   color: var(--color-accent);
-  font-weight: 600;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
   padding: 0.5rem 1rem;
-  border-radius: 0.75rem;
+  border-radius: 0.375rem;
   border: 1px solid var(--color-accent);
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.85rem;
+  transition: all 0.15s ease;
 }
+
 .btn-outline:hover {
   background: var(--color-accent-glow);
 }
 
-/* Input */
+/* Input — warm parchment */
 .input-field {
   background: var(--color-bg-input);
   border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
+  border-radius: 0.375rem;
   padding: 0.75rem 1rem;
   color: var(--color-text-primary);
+  font-family: 'Literata', Georgia, serif;
   font-size: 0.95rem;
   width: 100%;
-  transition: border-color 0.2s ease;
+  transition: border-color 0.15s ease;
   outline: none;
 }
+
 .input-field:focus {
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-glow);
+  box-shadow: 0 0 0 2px var(--color-accent-glow);
 }
+
 .input-field::placeholder {
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
+  font-style: italic;
 }
 
 textarea.input-field {
@@ -150,78 +199,104 @@ textarea.input-field {
   min-height: 5rem;
 }
 
-/* Animations */
+/* Animations — subtle, not flashy */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 var(--color-accent-glow); }
-  50% { box-shadow: 0 0 16px 4px var(--color-accent-glow); }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.3s ease forwards;
+  animation: fadeIn 0.25s ease forwards;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.4s ease forwards;
+  animation: slideUp 0.3s ease forwards;
 }
 
 /* Like animation */
 @keyframes heart-pop {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.3); }
-  60% { transform: scale(0.9); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(1);
+  }
+
+  30% {
+    transform: scale(1.25);
+  }
+
+  60% {
+    transform: scale(0.95);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .heart-pop {
-  animation: heart-pop 0.35s ease;
+  animation: heart-pop 0.3s ease;
 }
 
 /* Spinner */
 .spinner {
-  width: 2rem;
-  height: 2rem;
-  border: 3px solid var(--color-border);
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid var(--color-border);
   border-top-color: var(--color-accent);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Scrollbar */
+/* Scrollbar — barely visible */
 ::-webkit-scrollbar {
   width: 4px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 4px;
 }
 
-/* Avatar */
+/* Avatar — warm circle */
 .avatar {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
   object-fit: cover;
-  background: var(--color-bg-elevated);
+  background: var(--color-bg-secondary);
+  border: 1.5px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
+  font-family: 'Playfair Display', Georgia, serif;
   font-weight: 700;
   font-size: 1rem;
   color: var(--color-accent);
@@ -237,8 +312,25 @@ textarea.input-field {
 /* Label */
 .label {
   display: block;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text-secondary);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
   margin-bottom: 0.375rem;
+}
+
+/* Decorative divider — like a worn page line */
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 1rem 0;
+}
+
+/* Cookbook note style — informal, handwritten feel */
+.note-text {
+  font-family: 'Literata', Georgia, serif;
+  font-style: italic;
+  color: var(--color-text-secondary);
 }

@@ -55,20 +55,29 @@ export default function PostPage() {
     async function uploadImage() {
         if (!imageFile || !user) return null;
 
-        const ext = imageFile.name.split('.').pop();
-        const filePath = `${user.id}/${Date.now()}.${ext}`;
+        try {
+            const ext = imageFile.name.split('.').pop();
+            const filePath = `${user.id}/${Date.now()}.${ext}`;
 
-        const { error } = await supabase.storage
-            .from('images')
-            .upload(filePath, imageFile);
+            const { error: uploadError } = await supabase.storage
+                .from('images')
+                .upload(filePath, imageFile);
 
-        if (error) throw error;
+            if (uploadError) {
+                console.error('Image upload error:', uploadError);
+                // Don't block the post if image upload fails
+                return null;
+            }
 
-        const { data: { publicUrl } } = supabase.storage
-            .from('images')
-            .getPublicUrl(filePath);
+            const { data: { publicUrl } } = supabase.storage
+                .from('images')
+                .getPublicUrl(filePath);
 
-        return publicUrl;
+            return publicUrl;
+        } catch (err) {
+            console.error('Image upload exception:', err);
+            return null;
+        }
     }
 
     async function handleSubmit(e) {
@@ -107,7 +116,7 @@ export default function PostPage() {
                 recipeId = newRecipe.id;
             }
 
-            // Upload image
+            // Upload image (non-blocking — post will succeed even if image fails)
             let imageUrl = null;
             if (imageFile) {
                 imageUrl = await uploadImage();
@@ -128,7 +137,9 @@ export default function PostPage() {
 
             router.push('/feed');
         } catch (err) {
+            console.error('Post error:', err);
             setError(err.message || 'Failed to post');
+        } finally {
             setSubmitting(false);
         }
     }

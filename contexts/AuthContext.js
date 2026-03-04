@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
 const AuthContext = createContext({});
@@ -9,22 +9,31 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
+    const initialized = useRef(false);
     const supabase = getSupabase();
 
     async function fetchProfile(userId) {
-        const { data } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', userId)
-            .single();
-        setProfile(data);
+        try {
+            const { data } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+            setProfile(data);
+        } catch (err) {
+            console.error('Failed to fetch profile:', err);
+        }
     }
 
     useEffect(() => {
+        if (initialized.current) return;
+        initialized.current = true;
+
         // Safety timeout — never stay loading forever
         const timeout = setTimeout(() => {
+            console.warn('Auth loading timed out — forcing load complete');
             setLoading(false);
-        }, 5000);
+        }, 3000);
 
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
@@ -36,6 +45,7 @@ export function AuthProvider({ children }) {
             clearTimeout(timeout);
         }).catch((err) => {
             console.error('Auth session error:', err);
+            setUser(null);
             setLoading(false);
             clearTimeout(timeout);
         });
@@ -45,7 +55,7 @@ export function AuthProvider({ children }) {
             async (_event, session) => {
                 setUser(session?.user ?? null);
                 if (session?.user) {
-                    await fetchProfile(session.user.id);
+                    fetchProfile(session.user.id).catch(() => { });
                 } else {
                     setProfile(null);
                 }

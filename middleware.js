@@ -25,9 +25,22 @@ export async function middleware(request) {
         }
     );
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    // Use getUser with a timeout to prevent hanging
+    // If Supabase is slow/down, let the page load anyway and let
+    // client-side auth handle the redirect
+    let user = null;
+    try {
+        const result = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise((resolve) =>
+                setTimeout(() => resolve({ data: { user: null }, error: 'timeout' }), 3000)
+            ),
+        ]);
+        user = result?.data?.user ?? null;
+    } catch {
+        // If getUser fails, let the request through — client-side will handle auth
+        return supabaseResponse;
+    }
 
     const isAuthPage =
         request.nextUrl.pathname === '/login' ||

@@ -30,9 +30,10 @@ export default function FeedPage() {
             .from('cook_sessions')
             .select(`
         *,
-        profiles:user_id(id, name, avatar_url),
+        profiles:user_id(id, name, username, avatar_url),
         recipes:recipe_id(id, title, url, image_url),
         likes(user_id),
+        want_to_cook_actions(user_id),
         comments(count)
       `)
             .in('user_id', followingIds)

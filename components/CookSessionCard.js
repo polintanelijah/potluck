@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import StarRating from './StarRating';
 import LikeButton from './LikeButton';
+import WantToCookButton from './WantToCookButton';
 
 export default function CookSessionCard({ session, currentUserId }) {
     const profile = session.profiles;
@@ -23,6 +24,8 @@ export default function CookSessionCard({ session, currentUserId }) {
     const isLiked = session.likes?.some((l) => l.user_id === currentUserId);
     const likeCount = session.likes?.length || 0;
     const commentCount = session.comments?.[0]?.count || 0;
+    const isWanted = session.want_to_cook_actions?.some((w) => w.user_id === currentUserId);
+    const wantToCookCount = session.want_to_cook_actions?.length || 0;
 
     return (
         <div className="glass-card overflow-hidden animate-slide-up">
@@ -100,6 +103,12 @@ export default function CookSessionCard({ session, currentUserId }) {
                         sessionId={session.id}
                         initialLiked={isLiked}
                         initialCount={likeCount}
+                    />
+                    <WantToCookButton
+                        postId={session.id}
+                        recipeId={recipe?.id}
+                        initialWanted={isWanted}
+                        initialCount={wantToCookCount}
                     />
                     <Link
                         href={`/session/${session.id}`}

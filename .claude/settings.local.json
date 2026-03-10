@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/potluck-app-2/app -type f \\\\\\( -name \"*.js\" -o -name \"*.jsx\" -o -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) 2>/dev/null | grep -v node_modules)",
+      "Bash(npm run:*)"
+    ]
+  }
+}

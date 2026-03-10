@@ -3,14 +3,13 @@
 import { useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import CookSessionCard from '@/components/CookSessionCard';
 import Link from 'next/link';
 
 export default function ProfilePage() {
     const [profileData, setProfileData] = useState(null);
-    const [sessions, setSessions] = useState([]);
-    const [followers, setFollowers] = useState([]);
-    const [followingList, setFollowingList] = useState([]);
+    const [recipes, setRecipes] = useState([]);
+    const [wantToCook, setWantToCook] = useState([]);
+    const [haveCooked, setHaveCooked] = useState([]);
     const [followerCount, setFollowerCount] = useState(0);
     const [followingCount, setFollowingCount] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -20,7 +19,7 @@ export default function ProfilePage() {
     const [editBio, setEditBio] = useState('');
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
-    const [activeTab, setActiveTab] = useState('cooks'); // 'cooks' | 'followers' | 'following'
+    const [activeTab, setActiveTab] = useState('recipes');
     const { user, signOut, refreshProfile } = useAuth();
     const supabase = getSupabase();
 
@@ -28,21 +27,23 @@ export default function ProfilePage() {
 
     async function fetchAll() {
         setLoading(true);
-        const [profileRes, sessionsRes, followersRes, followingRes] = await Promise.all([
+        const [profileRes, recipesRes, wantToCookRes, haveCookedRes, followersRes, followingRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
-            supabase.from('cook_sessions').select(`*, profiles:user_id(id, name, username, avatar_url), recipes:recipe_id(id, title, url, image_url), likes(user_id), comments(count)`).eq('user_id', user.id).order('created_at', { ascending: false }),
-            supabase.from('follows').select('follower_id, profiles:follower_id(id, name, username, avatar_url)').eq('following_id', user.id),
-            supabase.from('follows').select('following_id, profiles:following_id(id, name, username, avatar_url)').eq('follower_id', user.id),
+            supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at').eq('created_by', user.id).order('created_at', { ascending: false }),
+            supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).eq('status', 'want_to_cook').order('created_at', { ascending: false }),
+            supabase.from('user_recipes').select('id, rating, cooked_at, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).eq('status', 'cooked').order('cooked_at', { ascending: false }),
+            supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', user.id),
+            supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', user.id),
         ]);
         setProfileData(profileRes.data);
         setEditName(profileRes.data?.name || '');
         setEditUsername(profileRes.data?.username || '');
         setEditBio(profileRes.data?.bio || '');
-        setSessions(sessionsRes.data || []);
-        setFollowers(followersRes.data || []);
-        setFollowingList(followingRes.data || []);
-        setFollowerCount(followersRes.data?.length || 0);
-        setFollowingCount(followingRes.data?.length || 0);
+        setRecipes(recipesRes.data || []);
+        setWantToCook(wantToCookRes.data || []);
+        setHaveCooked(haveCookedRes.data || []);
+        setFollowerCount(followersRes.count || 0);
+        setFollowingCount(followingRes.count || 0);
         setLoading(false);
     }
 
@@ -55,7 +56,6 @@ export default function ProfilePage() {
             setSaving(false);
             return;
         }
-        // Check uniqueness if changed
         if (cleanUsername !== profileData?.username) {
             const { data: existing } = await supabase.from('profiles').select('id').eq('username', cleanUsername).neq('id', user.id).single();
             if (existing) {
@@ -110,119 +110,166 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* Stats — tappable */}
+            {/* Follower/following stats (non-tappable) */}
             {!editMode && (
-                <div className="flex gap-0 mb-4 rounded-md overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
-                    <button
-                        onClick={() => setActiveTab('cooks')}
-                        className="flex-1 py-2.5 text-center transition-colors"
-                        style={{
-                            background: activeTab === 'cooks' ? 'var(--color-bg-card)' : 'transparent',
-                            borderRight: '1px solid var(--color-border)',
-                        }}
-                    >
-                        <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{sessions.length}</p>
-                        <p className="meta-label">cooks</p>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('followers')}
-                        className="flex-1 py-2.5 text-center transition-colors"
-                        style={{
-                            background: activeTab === 'followers' ? 'var(--color-bg-card)' : 'transparent',
-                            borderRight: '1px solid var(--color-border)',
-                        }}
-                    >
-                        <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{followerCount}</p>
-                        <p className="meta-label">followers</p>
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('following')}
-                        className="flex-1 py-2.5 text-center transition-colors"
-                        style={{ background: activeTab === 'following' ? 'var(--color-bg-card)' : 'transparent' }}
-                    >
-                        <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{followingCount}</p>
-                        <p className="meta-label">following</p>
-                    </button>
+                <div className="flex gap-4 mb-4 px-1">
+                    <span className="text-sm">
+                        <span className="font-bold" style={{ fontFamily: "'DM Mono', monospace" }}>{followerCount}</span>
+                        <span className="ml-1" style={{ color: 'var(--color-text-muted)' }}>followers</span>
+                    </span>
+                    <span className="text-sm">
+                        <span className="font-bold" style={{ fontFamily: "'DM Mono', monospace" }}>{followingCount}</span>
+                        <span className="ml-1" style={{ color: 'var(--color-text-muted)' }}>following</span>
+                    </span>
                 </div>
             )}
 
             {/* Actions */}
             {!editMode && (
-                <div className="flex gap-2 mb-6">
+                <div className="flex gap-2 mb-5">
                     <button onClick={() => setEditMode(true)} className="btn-secondary flex-1" style={{ fontSize: '0.8rem' }}>Edit Profile</button>
                     <button onClick={signOut} className="btn-secondary" style={{ fontSize: '0.8rem', color: 'var(--color-accent)' }}>Log Out</button>
                 </div>
             )}
 
+            {/* Tab bar: Your Recipes / Want to Cook / Have Cooked */}
+            {!editMode && (
+                <div className="flex gap-0 mb-4 rounded-md overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
+                    <button
+                        onClick={() => setActiveTab('recipes')}
+                        className="flex-1 py-2.5 text-center transition-colors"
+                        style={{
+                            background: activeTab === 'recipes' ? 'var(--color-bg-card)' : 'transparent',
+                            borderRight: '1px solid var(--color-border)',
+                        }}
+                    >
+                        <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{recipes.length}</p>
+                        <p className="meta-label">Your Recipes</p>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('want_to_cook')}
+                        className="flex-1 py-2.5 text-center transition-colors"
+                        style={{
+                            background: activeTab === 'want_to_cook' ? 'var(--color-bg-card)' : 'transparent',
+                            borderRight: '1px solid var(--color-border)',
+                        }}
+                    >
+                        <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{wantToCook.length}</p>
+                        <p className="meta-label">Want to Cook</p>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('have_cooked')}
+                        className="flex-1 py-2.5 text-center transition-colors"
+                        style={{ background: activeTab === 'have_cooked' ? 'var(--color-bg-card)' : 'transparent' }}
+                    >
+                        <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{haveCooked.length}</p>
+                        <p className="meta-label">Have Cooked</p>
+                    </button>
+                </div>
+            )}
+
             {/* Tab content */}
-            {activeTab === 'cooks' && (
+            {activeTab === 'recipes' && (
                 <>
-                    <p className="label mb-3">Your cook log</p>
-                    {sessions.length === 0 ? (
+                    {recipes.length === 0 ? (
                         <div className="text-center py-8">
-                            <p className="note-text text-sm">Nothing logged yet. <Link href="/post" style={{ color: 'var(--color-accent)' }}>Cook something!</Link></p>
+                            <p className="note-text text-sm">No recipes yet. <Link href="/post" style={{ color: 'var(--color-accent)' }}>Add one!</Link></p>
                         </div>
                     ) : (
-                        <div className="space-y-4">
-                            {sessions.map((session) => (<CookSessionCard key={session.id} session={session} currentUserId={user.id} />))}
+                        <div className="space-y-2">
+                            {recipes.map((recipe) => (
+                                <Link key={recipe.id} href={`/recipe/${recipe.id}`}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-md"
+                                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                                    {recipe.image_url ? (
+                                        <img src={recipe.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>🍽</span>
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm truncate" style={{ fontFamily: "'Playfair Display', serif" }}>{recipe.title}</p>
+                                        {recipe.source_site && (
+                                            <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{recipe.source_site}</p>
+                                        )}
+                                    </div>
+                                    {recipe.total_cooks > 0 && (
+                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                                            {recipe.total_cooks} cook{recipe.total_cooks !== 1 ? 's' : ''}
+                                        </span>
+                                    )}
+                                </Link>
+                            ))}
                         </div>
                     )}
                 </>
             )}
 
-            {activeTab === 'followers' && (
+            {activeTab === 'want_to_cook' && (
                 <>
-                    <p className="label mb-3">People who follow you</p>
-                    {followers.length === 0 ? (
-                        <p className="note-text text-sm text-center py-8">No followers yet</p>
+                    {wantToCook.length === 0 ? (
+                        <div className="text-center py-8">
+                            <p className="note-text text-sm">Nothing saved yet. Browse the <Link href="/discover" style={{ color: 'var(--color-accent)' }}>Discover</Link> tab to find recipes.</p>
+                        </div>
                     ) : (
                         <div className="space-y-2">
-                            {followers.map((f) => {
-                                const p = f.profiles;
-                                return (
-                                    <Link key={p.id} href={`/profile/${p.id}`}
-                                        className="flex items-center gap-3 px-4 py-3 rounded-md"
-                                        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
-                                        <div className="avatar" style={{ width: '2.25rem', height: '2.25rem', fontSize: '0.85rem' }}>
-                                            {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full rounded-full object-cover" /> : (p.name?.[0]?.toUpperCase() || '?')}
+                            {wantToCook.map((item) => (
+                                <Link key={item.id} href={`/recipe/${item.recipes.id}`}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-md"
+                                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                                    {item.recipes.image_url ? (
+                                        <img src={item.recipes.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>🍽</span>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{p.name}</p>
-                                            {p.username && <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>@{p.username}</p>}
-                                        </div>
-                                    </Link>
-                                );
-                            })}
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm truncate" style={{ fontFamily: "'Playfair Display', serif" }}>{item.recipes.title}</p>
+                                        {item.recipes.source_site && (
+                                            <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{item.recipes.source_site}</p>
+                                        )}
+                                    </div>
+                                </Link>
+                            ))}
                         </div>
                     )}
                 </>
             )}
 
-            {activeTab === 'following' && (
+            {activeTab === 'have_cooked' && (
                 <>
-                    <p className="label mb-3">People you follow</p>
-                    {followingList.length === 0 ? (
+                    {haveCooked.length === 0 ? (
                         <div className="text-center py-8">
-                            <p className="note-text text-sm">Not following anyone yet. <Link href="/discover" style={{ color: 'var(--color-accent)' }}>Find friends!</Link></p>
+                            <p className="note-text text-sm">You haven&apos;t logged any cooks yet. <Link href="/post" style={{ color: 'var(--color-accent)' }}>Cook something!</Link></p>
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {followingList.map((f) => {
-                                const p = f.profiles;
-                                return (
-                                    <Link key={p.id} href={`/profile/${p.id}`}
-                                        className="flex items-center gap-3 px-4 py-3 rounded-md"
-                                        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
-                                        <div className="avatar" style={{ width: '2.25rem', height: '2.25rem', fontSize: '0.85rem' }}>
-                                            {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full rounded-full object-cover" /> : (p.name?.[0]?.toUpperCase() || '?')}
+                            {haveCooked.map((item) => (
+                                <Link key={item.id} href={`/recipe/${item.recipes.id}`}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-md"
+                                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                                    {item.recipes.image_url ? (
+                                        <img src={item.recipes.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>🍽</span>
                                         </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{p.name}</p>
-                                            {p.username && <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>@{p.username}</p>}
-                                        </div>
-                                    </Link>
-                                );
-                            })}
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm truncate" style={{ fontFamily: "'Playfair Display', serif" }}>{item.recipes.title}</p>
+                                        {item.recipes.source_site && (
+                                            <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{item.recipes.source_site}</p>
+                                        )}
+                                    </div>
+                                    {item.rating && (
+                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                                            {item.rating}/10
+                                        </span>
+                                    )}
+                                </Link>
+                            ))}
                         </div>
                     )}
                 </>

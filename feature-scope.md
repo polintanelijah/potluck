@@ -21,20 +21,23 @@
     * To future-proof for public accounts, agents should anticipate (or implement) an `is_private` boolean on the `profiles` table. For the MVP, treat all accounts as if `is_private = true`.
 
 ### 2.2. Canonical Recipe Management
-* **Feature Scope:** Centralized, globally accessible repository of recipes imported via URL or manually created. 
+* **Feature Scope:** Centralized, globally accessible repository of recipes imported via URL or manually created. Recipes are editable by their original creator.
 * **Primary Table:** `recipes`
 * **Agent Reasoning:**
     * While *Posts* are private, *Recipes* are canonical and global. If User A (private) cooks "Kenji's Chili", User B can still discover the canonical "Kenji's Chili" recipe entity, even if they cannot see User A's specific post about it.
     * `extracted_data` (JSONB) is scoped to store unpredictable scraped metadata.
     * `avg_rating` and `total_cooks` are denormalized for immediate filtering.
+    * Recipes have a `created_by` field scoped to `auth.uid()`. Only the original creator may `UPDATE` a recipe's fields. RLS must enforce this.
 
 ### 2.3. Social Feed & Activity Logging (Posts)
-* **Feature Scope:** Users post their cooking activity, share tips, or review recipes. These populate the follower-gated main social feed.
+* **Feature Scope:** Users post their cooking activity, share tips, or review recipes. These populate the follower-gated main social feed. Posts are editable after creation.
 * **Primary Table:** `posts`
 * **Agent Reasoning:**
     * Replaces legacy `cook_sessions`. A Post is a polymorphic entity defined by a `type` enum (`cook_log`, `recipe_share`, `review`, `tip`).
     * Aggregates interaction counts directly on the row to allow the client to render feeds without expensive `COUNT()` operations.
     * **Crucial constraint:** Queries fetching posts must validate that the requesting user follows the `post.user_id`.
+    * Posts support editing (`UPDATE`) by the author. RLS write constraints already enforce `auth.uid() = user_id`; no additional access logic is needed.
+    * **End-of-feed CTA:** When the client renders the last post in the feed (i.e., no further pagination results), it must display a prompt directing the user to the Discover tab to find more people to follow. This is a client-side rendering concern, not a database concern.
 
 ### 2.4. Intent & History Tracking (Want to Cook / Cooked)
 * **Feature Scope:** Users bookmark recipes to cook later, or log completion.
@@ -49,12 +52,14 @@
 * **Agent Reasoning:**
     * When a user clicks "Has Cooked" on a friend's post, the system automatically generates a `cooked_it` comment. This creates organic activity without manual typing.
 
-### 2.6. Pairwise Ranking & Consensus (The "5th Tab")
-* **Feature Scope:** Users vote on head-to-head matchups between recipes they have cooked to build a global trusted leaderboard.
+### 2.6. Pairwise Ranking (The "5th Tab" — Personal Ranked Recipe List)
+* **Feature Scope:** Users vote on head-to-head matchups between recipes they have personally cooked. The result is a ranked list of that user's cooked recipes ordered by their Elo rating, displayed on their profile as the 5th tab.
 * **Primary Tables:** `pairwise_votes`, `recipe_elo_ratings`
 * **Agent Reasoning:**
     * Pairwise voting forces a definitive preference over skewed 1-5 star systems.
-    * `recipe_elo_ratings` isolates heavy math from read queries, allowing the ranking tab to load instantly. Global recipe rankings are visible to everyone, aggregating the private actions of the network safely.
+    * `recipe_elo_ratings` is scoped per user — it represents *that user's* personal ranking of recipes they have cooked, not a global leaderboard. Elo math is computed per `(user_id, recipe_id)` pair.
+    * The 5th tab on the user's profile renders their cooked recipes ordered by their personal Elo score descending. It is only visible to followers (same RLS rules as posts).
+    * This is explicitly **not** a global aggregate leaderboard in the MVP. Global consensus rankings are a future feature.
 
 ---
 
@@ -76,3 +81,29 @@
 * **Read Access (SELECT):** * `recipes` and `recipe_elo_ratings`: Publicly readable (canonical data).
     * `posts`, `comments`, `likes`: Restricted. A user can only `SELECT` rows where `user_id` is their own, OR where the `user_id` exists in the `follows` table where `follower_id = auth.uid()`.
 * **Write Constraints:** `INSERT`, `UPDATE`, and `DELETE` are universally restricted to `auth.uid() = user_id`.
+
+---
+
+## 5. CLIENT UI STRUCTURE
+
+### 5.1. Tab Navigation (Bottom Bar)
+The app has four primary tabs in the following order:
+1. **Feed** — Follower-gated post feed (§2.3)
+2. **Discover** — Browse canonical recipes and find users to follow (§2.2)
+3. **Add Recipe** — Import via URL or create manually (§2.2)
+4. **Profile** — The current user's profile (§5.2)
+
+### 5.2. Profile Tab Layout
+The profile has three sub-tabs:
+* **Your Recipes** — Recipes the user created or imported. Distinguishes between recipes authored by the user vs. sourced elsewhere.
+* **Want to Cook** — Recipes bookmarked via the `want_to_cook` state in `user_recipes`.
+* **Have Cooked** — Recipes with `status = cooked` in `user_recipes`.
+
+A fifth tab (see §2.6) renders the user's personal pairwise-ranked recipe list.
+
+### 5.3. Profile-Level Social Metrics
+In addition to follower/following counts, a user's profile displays:
+* **Want to Cook count** — Total number of times other users have bookmarked any recipe this user created.
+* **Have Cooked count** — Total number of times other users have logged cooking any recipe this user created.
+
+These function as recipe-impact metrics analogous to follower counts. They should be denormalized columns on `profiles` and updated via database triggers on `want_to_cook_actions` and `user_recipes` respectively. Agents must scope these counters to activity on recipes where `recipes.created_by = profile.user_id`.

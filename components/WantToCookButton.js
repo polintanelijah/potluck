@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function WantToCookButton({ postId, recipeId, initialWanted = false, initialCount = 0 }) {
+export default function WantToCookButton({ postId, recipeId, initialWanted = false, initialCount = 0, isOwnPost = false }) {
     const [wanted, setWanted] = useState(initialWanted);
     const [count, setCount] = useState(initialCount);
     const [animating, setAnimating] = useState(false);
     const { user } = useAuth();
     const supabase = getSupabase();
+
+    if (isOwnPost) return null;
 
     async function toggleWantToCook() {
         if (!user || !recipeId) return;
@@ -27,12 +29,23 @@ export default function WantToCookButton({ postId, recipeId, initialWanted = fal
                     .delete()
                     .eq('user_id', user.id)
                     .eq('post_id', postId);
+                await supabase
+                    .from('user_recipes')
+                    .delete()
+                    .eq('user_id', user.id)
+                    .eq('recipe_id', recipeId)
+                    .eq('status', 'want_to_cook');
             } else {
                 await supabase.from('want_to_cook_actions').insert({
                     user_id: user.id,
                     post_id: postId,
                     recipe_id: recipeId,
                 });
+                await supabase.from('user_recipes').upsert({
+                    user_id: user.id,
+                    recipe_id: recipeId,
+                    status: 'want_to_cook',
+                }, { onConflict: 'user_id,recipe_id,status' });
             }
         } catch {
             setWanted(wasWanted);

@@ -4,6 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import LikeButton from '@/components/LikeButton';
+import WantToCookButton from '@/components/WantToCookButton';
 import CommentSection from '@/components/CommentSection';
 import Link from 'next/link';
 
@@ -19,7 +20,7 @@ export default function PostDetailPage({ params }) {
     async function fetchPost() {
         const { data } = await supabase
             .from('posts')
-            .select(`*, profiles:user_id(id, name, avatar_url), recipes:recipe_id(id, title, url, image_url, ingredients, instructions), likes(user_id)`)
+            .select(`*, profiles:user_id(id, name, avatar_url), recipes:recipe_id(id, title, url, image_url, ingredients, instructions), likes(user_id), want_to_cook_actions(user_id)`)
             .eq('id', id).single();
         setPost(data);
         setLoading(false);
@@ -44,6 +45,8 @@ export default function PostDetailPage({ params }) {
     const recipe = post.recipes;
     const isLiked = post.likes?.some((l) => l.user_id === user?.id);
     const likeCount = post.likes?.length || 0;
+    const isWanted = post.want_to_cook_actions?.some((w) => w.user_id === user?.id);
+    const wantToCookCount = post.want_to_cook_actions?.length || 0;
 
     return (
         <div className="px-4 py-6 animate-fade-in">
@@ -92,6 +95,7 @@ export default function PostDetailPage({ params }) {
 
             <div className="flex items-center gap-4 pb-4 mb-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
                 <LikeButton postId={post.id} initialLiked={isLiked} initialCount={likeCount} />
+                <WantToCookButton postId={post.id} recipeId={recipe?.id} initialWanted={isWanted} initialCount={wantToCookCount} isOwnPost={post.user_id === user?.id} />
             </div>
 
             <h2 className="font-bold text-sm mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Comments</h2>

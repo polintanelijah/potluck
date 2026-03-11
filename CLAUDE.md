@@ -124,4 +124,3 @@ Do not build these unless explicitly asked:
 - Invite system (registration is open)
 - Notifications (triggers store data for this, but no UI)
 - "Has Cooked" button on feed posts (ranking flow needs to be triggered from posts too)
-- Want-to-cook button on feed posts (table exists, button component exists, but not wired into feed query yet)

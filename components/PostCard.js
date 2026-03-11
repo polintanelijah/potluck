@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import LikeButton from './LikeButton';
+import WantToCookButton from './WantToCookButton';
 
 export default function PostCard({ post, currentUserId }) {
     const profile = post.profiles;
@@ -21,6 +22,8 @@ export default function PostCard({ post, currentUserId }) {
 
     const isLiked = post.likes?.some((l) => l.user_id === currentUserId);
     const likeCount = post.likes?.length || 0;
+    const isWanted = post.want_to_cook_actions?.some((w) => w.user_id === currentUserId);
+    const wantToCookCount = post.want_to_cook_actions?.length || 0;
     const commentCount = post.comments?.[0]?.count || 0;
 
     return (
@@ -97,6 +100,13 @@ export default function PostCard({ post, currentUserId }) {
                         postId={post.id}
                         initialLiked={isLiked}
                         initialCount={likeCount}
+                    />
+                    <WantToCookButton
+                        postId={post.id}
+                        recipeId={recipe?.id}
+                        initialWanted={isWanted}
+                        initialCount={wantToCookCount}
+                        isOwnPost={post.user_id === currentUserId}
                     />
                     <Link
                         href={`/session/${post.id}`}

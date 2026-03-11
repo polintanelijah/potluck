@@ -1,9 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import StarRating from './StarRating';
 import LikeButton from './LikeButton';
-import WantToCookButton from './WantToCookButton';
 
 export default function CookSessionCard({ session, currentUserId }) {
     const profile = session.profiles;
@@ -24,12 +22,10 @@ export default function CookSessionCard({ session, currentUserId }) {
     const isLiked = session.likes?.some((l) => l.user_id === currentUserId);
     const likeCount = session.likes?.length || 0;
     const commentCount = session.comments?.[0]?.count || 0;
-    const isWanted = session.want_to_cook_actions?.some((w) => w.user_id === currentUserId);
-    const wantToCookCount = session.want_to_cook_actions?.length || 0;
 
     return (
         <div className="glass-card overflow-hidden animate-slide-up">
-            {/* Header — friend's name is front and center */}
+            {/* Header */}
             <div className="flex items-center gap-3 px-4 pt-4 pb-2">
                 <Link href={profile?.id === currentUserId ? '/profile' : `/profile/${profile?.id}`}>
                     <div className="avatar">
@@ -50,10 +46,9 @@ export default function CookSessionCard({ session, currentUserId }) {
                         {profile?.username ? `@${profile.username}` : ''} · {timeAgo(session.created_at)}
                     </p>
                 </div>
-                <StarRating rating={session.rating} size="sm" />
             </div>
 
-            {/* Recipe title — always visible at a glance */}
+            {/* Recipe title */}
             <div className="px-4 pb-2">
                 <Link href={`/recipe/${recipe?.id}`}>
                     <h3 className="text-lg font-bold" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
@@ -62,7 +57,7 @@ export default function CookSessionCard({ session, currentUserId }) {
                 </Link>
             </div>
 
-            {/* Image — secondary to the text */}
+            {/* Image */}
             {session.image_url && (
                 <Link href={`/session/${session.id}`}>
                     <div className="relative w-full mx-4 rounded-md overflow-hidden" style={{ aspectRatio: '4/3', width: 'calc(100% - 2rem)' }}>
@@ -75,7 +70,7 @@ export default function CookSessionCard({ session, currentUserId }) {
                 </Link>
             )}
 
-            {/* Notes — the honest review */}
+            {/* Notes and actions */}
             <div className="px-4 py-3 space-y-2">
                 {session.notes && (
                     <p className="text-sm leading-relaxed note-text">
@@ -83,7 +78,6 @@ export default function CookSessionCard({ session, currentUserId }) {
                     </p>
                 )}
 
-                {/* Recipe URL */}
                 {recipe?.url && (
                     <a
                         href={recipe.url}
@@ -96,19 +90,13 @@ export default function CookSessionCard({ session, currentUserId }) {
                     </a>
                 )}
 
-                {/* Actions — subtle, not shouty */}
+                {/* Actions */}
                 <div className="flex items-center gap-4 pt-2"
                     style={{ borderTop: '1px solid var(--color-border-light)' }}>
                     <LikeButton
                         sessionId={session.id}
                         initialLiked={isLiked}
                         initialCount={likeCount}
-                    />
-                    <WantToCookButton
-                        postId={session.id}
-                        recipeId={recipe?.id}
-                        initialWanted={isWanted}
-                        initialCount={wantToCookCount}
                     />
                     <Link
                         href={`/session/${session.id}`}

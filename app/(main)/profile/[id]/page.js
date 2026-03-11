@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import Link from 'next/link';
+import { getBucketConfig, getBucketScore, sortRankings } from '@/lib/rankings';
 
 export default function OtherProfilePage({ params }) {
     const { id } = use(params);
@@ -19,40 +20,49 @@ export default function OtherProfilePage({ params }) {
     const { user } = useAuth();
     const supabase = getSupabase();
 
-    useEffect(() => { if (user && id) fetchAll(); }, [user, id]);
+    useEffect(() => {
+        let cancelled = false;
 
-    async function fetchAll() {
-        setLoading(true);
+        async function fetchAll() {
+            if (!user || !id) return;
 
-        // Core queries that always work
-        const [profileRes, recipesRes, followersRes, followingRes, followCheckRes] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', id).single(),
-            supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at, posts(image_url)').eq('created_by', id).order('created_at', { ascending: false }),
-            supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id),
-            supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id),
-            supabase.from('follows').select('follower_id').eq('follower_id', user.id).eq('following_id', id).single(),
-        ]);
+            setLoading(true);
 
-        setProfileData(profileRes.data);
-        setRecipes(recipesRes.data || []);
-        setFollowerCount(followersRes.count || 0);
-        setFollowingCount(followingRes.count || 0);
-        setIsFollowing(!!followCheckRes.data);
+            const [profileRes, recipesRes, followersRes, followingRes, followCheckRes, savedRes, rankingRes] = await Promise.all([
+                supabase.from('profiles').select('*').eq('id', id).single(),
+                supabase.from('recipes').select('id, title, url, image_url, source_site, created_at, posts(image_url)').eq('created_by', id).order('created_at', { ascending: false }),
+                supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id),
+                supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id),
+                supabase.from('follows').select('follower_id').eq('follower_id', user.id).eq('following_id', id).maybeSingle(),
+                supabase.from('want_to_cook_actions').select('post_id, created_at, posts:post_id(id, caption, image_url, created_at, recipes:recipe_id(id, title, url, image_url, source_site))').eq('user_id', id).order('created_at', { ascending: false }),
+                supabase.from('user_recipe_rankings').select('recipe_id, bucket, rank_position, recipes:recipe_id(id, title, url, image_url, source_site, posts(image_url))').eq('user_id', id),
+            ]);
 
-        // Optional queries — tables may not exist yet
-        const wantRes = await supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site, posts(image_url))').eq('user_id', id).eq('status', 'want_to_cook').order('created_at', { ascending: false });
-        setWantToCook(wantRes.error ? [] : (wantRes.data || []));
+            if (cancelled) return;
 
-        const eloRes = await supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site, posts(image_url))').eq('user_id', id).order('elo_score', { ascending: false });
-        setHaveCooked(eloRes.error ? [] : (eloRes.data || []).filter((r) => r.recipes));
+            setProfileData(profileRes.data);
+            setRecipes(recipesRes.data || []);
+            setFollowerCount(followersRes.count || 0);
+            setFollowingCount(followingRes.count || 0);
+            setIsFollowing(!!followCheckRes.data);
+            setWantToCook((savedRes.data || []).filter((item) => item.posts?.recipes));
+            setHaveCooked(sortRankings((rankingRes.data || []).filter((item) => item.recipes)));
+            setLoading(false);
+        }
 
-        setLoading(false);
-    }
+        fetchAll();
+        return () => {
+            cancelled = true;
+        };
+    }, [id, supabase, user]);
 
     async function toggleFollow() {
+        if (!user) return;
+
         const wasFollowing = isFollowing;
         setIsFollowing(!wasFollowing);
-        setFollowerCount((c) => (wasFollowing ? c - 1 : c + 1));
+        setFollowerCount((count) => (wasFollowing ? count - 1 : count + 1));
+
         if (wasFollowing) {
             await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', id);
         } else {
@@ -60,56 +70,22 @@ export default function OtherProfilePage({ params }) {
         }
     }
 
-    function getDisplayScore(eloScore, maxElo) {
-        if (!maxElo || maxElo <= 0) return '10.0';
-        return ((eloScore / maxElo) * 10).toFixed(1);
+    function getRecipeImage(recipe) {
+        if (recipe.image_url) return recipe.image_url;
+        const postWithImage = recipe.posts?.find((post) => post.image_url);
+        return postWithImage?.image_url || null;
+    }
+
+    function getScoreDetails(item) {
+        const totalInBucket = haveCooked.filter((entry) => entry.bucket === item.bucket).length;
+        return {
+            label: getBucketConfig(item.bucket).label,
+            score: getBucketScore(item.bucket, item.rank_position, totalInBucket),
+        };
     }
 
     if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
     if (!profileData) return <div className="text-center py-16"><p className="note-text">User not found</p></div>;
-
-    const maxElo = haveCooked.length > 0 ? haveCooked[0].elo_score : 0;
-
-    function getRecipeImage(recipe) {
-        if (recipe.image_url) return recipe.image_url;
-        const postWithImage = recipe.posts?.find((p) => p.image_url);
-        return postWithImage?.image_url || null;
-    }
-
-    function RecipeCard({ recipe, rank, eloScore }) {
-        const img = getRecipeImage(recipe);
-        return (
-            <Link href={`/recipe/${recipe.id}`}
-                className="flex items-center gap-3 px-4 py-3 rounded-md"
-                style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
-                {rank != null && (
-                    <div className="flex-shrink-0 w-7 text-center">
-                        <span className="text-xs font-bold" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                            {rank}
-                        </span>
-                    </div>
-                )}
-                {img ? (
-                    <img src={img} alt="" className="w-12 h-12 rounded-md object-cover" />
-                ) : (
-                    <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
-                    </div>
-                )}
-                <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate" style={{ fontFamily: "'Playfair Display', serif" }}>{recipe.title}</p>
-                    {recipe.source_site && (
-                        <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{recipe.source_site}</p>
-                    )}
-                </div>
-                {eloScore != null && (
-                    <span className="text-sm font-bold" style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}>
-                        {getDisplayScore(eloScore, maxElo)}
-                    </span>
-                )}
-            </Link>
-        );
-    }
 
     return (
         <div className="px-4 py-6">
@@ -128,7 +104,6 @@ export default function OtherProfilePage({ params }) {
                 </div>
             </div>
 
-            {/* Follower/following stats (non-tappable) */}
             <div className="flex gap-4 mb-4 px-1">
                 <span className="text-sm">
                     <span className="font-bold" style={{ fontFamily: "'DM Mono', monospace" }}>{followerCount}</span>
@@ -144,7 +119,6 @@ export default function OtherProfilePage({ params }) {
                 {isFollowing ? 'Following' : 'Follow'}
             </button>
 
-            {/* Tab bar */}
             <div className="flex gap-0 mb-4 rounded-md overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
                 <button onClick={() => setActiveTab('recipes')} className="flex-1 py-2.5 text-center transition-colors"
                     style={{ background: activeTab === 'recipes' ? 'var(--color-bg-card)' : 'transparent', borderRight: '1px solid var(--color-border)' }}>
@@ -163,47 +137,109 @@ export default function OtherProfilePage({ params }) {
                 </button>
             </div>
 
-            {/* Tab content */}
             {activeTab === 'recipes' && (
-                <>
-                    {recipes.length === 0 ? (
-                        <p className="note-text text-sm text-center py-8">No recipes yet</p>
-                    ) : (
-                        <div className="space-y-2">
-                            {recipes.map((recipe) => (
-                                <RecipeCard key={recipe.id} recipe={recipe} />
-                            ))}
-                        </div>
-                    )}
-                </>
+                recipes.length === 0 ? (
+                    <p className="note-text text-sm text-center py-8">No recipes yet</p>
+                ) : (
+                    <div className="space-y-2">
+                        {recipes.map((recipe) => {
+                            const image = getRecipeImage(recipe);
+                            return (
+                                <Link key={recipe.id} href={`/recipe/${recipe.id}`}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-md"
+                                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                                    {image ? (
+                                        <img src={image} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm truncate" style={{ fontFamily: "'Playfair Display', serif" }}>{recipe.title}</p>
+                                        {recipe.source_site && (
+                                            <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{recipe.source_site}</p>
+                                        )}
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )
             )}
 
             {activeTab === 'want_to_cook' && (
-                <>
-                    {wantToCook.length === 0 ? (
-                        <p className="note-text text-sm text-center py-8">Nothing saved yet</p>
-                    ) : (
-                        <div className="space-y-2">
-                            {wantToCook.map((item) => (
-                                <RecipeCard key={item.id} recipe={item.recipes} />
-                            ))}
-                        </div>
-                    )}
-                </>
+                wantToCook.length === 0 ? (
+                    <p className="note-text text-sm text-center py-8">Nothing saved yet</p>
+                ) : (
+                    <div className="space-y-2">
+                        {wantToCook.map((item) => {
+                            const post = item.posts;
+                            const recipe = post.recipes;
+                            const image = post.image_url || recipe?.image_url || null;
+                            return (
+                                <Link key={`${item.post_id}-${item.created_at}`} href={`/session/${post.id}`}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-md"
+                                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                                    {image ? (
+                                        <img src={image} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm truncate" style={{ fontFamily: "'Playfair Display', serif" }}>{recipe?.title}</p>
+                                        {post.caption && <p className="note-text text-xs truncate mt-0.5">{post.caption}</p>}
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )
             )}
 
             {activeTab === 'have_cooked' && (
-                <>
-                    {haveCooked.length === 0 ? (
-                        <p className="note-text text-sm text-center py-8">No cooks logged yet</p>
-                    ) : (
-                        <div className="space-y-2">
-                            {haveCooked.map((item, index) => (
-                                <RecipeCard key={item.recipe_id} recipe={item.recipes} rank={index + 1} eloScore={item.elo_score} />
-                            ))}
-                        </div>
-                    )}
-                </>
+                haveCooked.length === 0 ? (
+                    <p className="note-text text-sm text-center py-8">No cooks logged yet</p>
+                ) : (
+                    <div className="space-y-2">
+                        {haveCooked.map((item) => {
+                            const image = getRecipeImage(item.recipes);
+                            const details = getScoreDetails(item);
+                            return (
+                                <Link key={item.recipe_id} href={`/recipe/${item.recipes.id}`}
+                                    className="flex items-center gap-3 px-4 py-3 rounded-md"
+                                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                                    <div className="flex-shrink-0 w-9 text-center">
+                                        <span className="text-xs font-bold block" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                                            #{item.rank_position}
+                                        </span>
+                                        <span className="text-[0.6rem]" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                                            {details.label}
+                                        </span>
+                                    </div>
+                                    {image ? (
+                                        <img src={image} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    ) : (
+                                        <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
+                                        </div>
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-sm truncate" style={{ fontFamily: "'Playfair Display', serif" }}>{item.recipes.title}</p>
+                                        {item.recipes.source_site && (
+                                            <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{item.recipes.source_site}</p>
+                                        )}
+                                    </div>
+                                    <span className="text-sm font-bold" style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}>
+                                        {details.score}
+                                    </span>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )
             )}
         </div>
     );

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import Link from 'next/link';
 
 export default function DiscoverPage() {
     const [query, setQuery] = useState('');
@@ -15,40 +15,58 @@ export default function DiscoverPage() {
     const supabase = getSupabase();
 
     useEffect(() => {
-        if (user) { fetchFollowing(); fetchSuggested(); }
-    }, [user]);
+        let cancelled = false;
 
-    async function fetchFollowing() {
-        const { data } = await supabase.from('follows').select('following_id').eq('follower_id', user.id);
-        setFollowingIds(new Set(data?.map((f) => f.following_id) || []));
-    }
+        async function loadDiscoverState() {
+            if (!user) return;
 
-    async function fetchSuggested() {
-        const { data } = await supabase.from('profiles').select('id, name, username, avatar_url, bio').neq('id', user.id).order('created_at', { ascending: false }).limit(20);
-        setSuggested(data || []);
-    }
+            const [followingRes, suggestedRes] = await Promise.all([
+                supabase.from('follows').select('following_id').eq('follower_id', user.id),
+                supabase.from('profiles').select('id, name, username, avatar_url, bio').neq('id', user.id).order('created_at', { ascending: false }).limit(20),
+            ]);
 
-    async function searchUsers(q) {
-        if (!q.trim()) { setUsers([]); return; }
+            if (cancelled) return;
+
+            setFollowingIds(new Set(followingRes.data?.map((item) => item.following_id) || []));
+            setSuggested(suggestedRes.data || []);
+        }
+
+        loadDiscoverState();
+        return () => {
+            cancelled = true;
+        };
+    }, [supabase, user]);
+
+    async function searchUsers(nextQuery) {
+        if (!nextQuery.trim()) {
+            setUsers([]);
+            return;
+        }
+
         setLoading(true);
-        // Search by name OR username
         const { data } = await supabase
             .from('profiles')
             .select('id, name, username, avatar_url, bio')
-            .or(`name.ilike.%${q}%,username.ilike.%${q}%`)
+            .or(`name.ilike.%${nextQuery}%,username.ilike.%${nextQuery}%`)
             .neq('id', user.id)
             .limit(20);
+
         setUsers(data || []);
         setLoading(false);
     }
 
     async function toggleFollow(targetId) {
         const isFollowing = followingIds.has(targetId);
-        setFollowingIds((prev) => {
-            const next = new Set(prev);
-            isFollowing ? next.delete(targetId) : next.add(targetId);
+        setFollowingIds((previous) => {
+            const next = new Set(previous);
+            if (isFollowing) {
+                next.delete(targetId);
+            } else {
+                next.add(targetId);
+            }
             return next;
         });
+
         if (isFollowing) {
             await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetId);
         } else {
@@ -70,7 +88,11 @@ export default function DiscoverPage() {
                 className="input-field mb-6"
                 placeholder="Search by name or @username..."
                 value={query}
-                onChange={(e) => { setQuery(e.target.value); searchUsers(e.target.value); }}
+                onChange={(e) => {
+                    const nextQuery = e.target.value;
+                    setQuery(nextQuery);
+                    searchUsers(nextQuery);
+                }}
             />
 
             {!query.trim() && <p className="label mb-3">People on Potluck</p>}
@@ -80,35 +102,35 @@ export default function DiscoverPage() {
             ) : displayUsers.length === 0 ? (
                 <div className="text-center py-12">
                     <p className="note-text text-sm">
-                        {query.trim() ? 'No one by that name yet' : 'No one else here yet — invite your friends!'}
+                        {query.trim() ? 'No one by that name yet' : 'No one else here yet - invite your friends!'}
                     </p>
                 </div>
             ) : (
                 <div className="space-y-2">
-                    {displayUsers.map((u) => {
-                        const isFollowing = followingIds.has(u.id);
+                    {displayUsers.map((profile) => {
+                        const isFollowing = followingIds.has(profile.id);
                         return (
                             <div
-                                key={u.id}
+                                key={profile.id}
                                 className="flex items-center gap-3 px-4 py-3 rounded-md animate-fade-in"
                                 style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}
                             >
-                                <Link href={`/profile/${u.id}`}>
+                                <Link href={`/profile/${profile.id}`}>
                                     <div className="avatar">
-                                        {u.avatar_url ? (
-                                            <img src={u.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                                        ) : (u.name?.[0]?.toUpperCase() || '?')}
+                                        {profile.avatar_url ? (
+                                            <img src={profile.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                                        ) : (profile.name?.[0]?.toUpperCase() || '?')}
                                     </div>
                                 </Link>
                                 <div className="flex-1 min-w-0">
-                                    <Link href={`/profile/${u.id}`}>
-                                        <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{u.name}</p>
+                                    <Link href={`/profile/${profile.id}`}>
+                                        <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{profile.name}</p>
                                     </Link>
-                                    {u.username && <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>@{u.username}</p>}
-                                    {u.bio && <p className="note-text text-xs truncate mt-0.5">{u.bio}</p>}
+                                    {profile.username && <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>@{profile.username}</p>}
+                                    {profile.bio && <p className="note-text text-xs truncate mt-0.5">{profile.bio}</p>}
                                 </div>
                                 <button
-                                    onClick={() => toggleFollow(u.id)}
+                                    onClick={() => toggleFollow(profile.id)}
                                     className={isFollowing ? 'btn-secondary' : 'btn-outline'}
                                     style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem' }}
                                 >

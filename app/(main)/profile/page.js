@@ -31,7 +31,7 @@ export default function ProfilePage() {
         // Core queries that always work
         const [profileRes, recipesRes, followersRes, followingRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
-            supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at').eq('created_by', user.id).order('created_at', { ascending: false }),
+            supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at, posts(image_url)').eq('created_by', user.id).order('created_at', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', user.id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', user.id),
         ]);
@@ -45,10 +45,10 @@ export default function ProfilePage() {
         setFollowingCount(followingRes.count || 0);
 
         // Optional queries — these tables may not exist yet
-        const wantRes = await supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).eq('status', 'want_to_cook').order('created_at', { ascending: false });
+        const wantRes = await supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site, posts(image_url))').eq('user_id', user.id).eq('status', 'want_to_cook').order('created_at', { ascending: false });
         setWantToCook(wantRes.error ? [] : (wantRes.data || []));
 
-        const eloRes = await supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).order('elo_score', { ascending: false });
+        const eloRes = await supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site, posts(image_url))').eq('user_id', user.id).order('elo_score', { ascending: false });
         setHaveCooked(eloRes.error ? [] : (eloRes.data || []).filter((r) => r.recipes));
 
         setLoading(false);
@@ -57,6 +57,12 @@ export default function ProfilePage() {
     function getDisplayScore(eloScore, maxElo) {
         if (!maxElo || maxElo <= 0) return '10.0';
         return ((eloScore / maxElo) * 10).toFixed(1);
+    }
+
+    function getRecipeImage(recipe) {
+        if (recipe.image_url) return recipe.image_url;
+        const postWithImage = recipe.posts?.find((p) => p.image_url);
+        return postWithImage?.image_url || null;
     }
 
     async function saveProfile() {
@@ -191,12 +197,14 @@ export default function ProfilePage() {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {recipes.map((recipe) => (
+                            {recipes.map((recipe) => {
+                                const img = getRecipeImage(recipe);
+                                return (
                                 <Link key={recipe.id} href={`/recipe/${recipe.id}`}
                                     className="flex items-center gap-3 px-4 py-3 rounded-md"
                                     style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
-                                    {recipe.image_url ? (
-                                        <img src={recipe.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    {img ? (
+                                        <img src={img} alt="" className="w-12 h-12 rounded-md object-cover" />
                                     ) : (
                                         <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
                                             <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
@@ -214,7 +222,8 @@ export default function ProfilePage() {
                                         </span>
                                     )}
                                 </Link>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </>
@@ -228,12 +237,14 @@ export default function ProfilePage() {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {wantToCook.map((item) => (
+                            {wantToCook.map((item) => {
+                                const img = getRecipeImage(item.recipes);
+                                return (
                                 <Link key={item.id} href={`/recipe/${item.recipes.id}`}
                                     className="flex items-center gap-3 px-4 py-3 rounded-md"
                                     style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
-                                    {item.recipes.image_url ? (
-                                        <img src={item.recipes.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    {img ? (
+                                        <img src={img} alt="" className="w-12 h-12 rounded-md object-cover" />
                                     ) : (
                                         <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
                                             <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
@@ -246,7 +257,8 @@ export default function ProfilePage() {
                                         )}
                                     </div>
                                 </Link>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </>
@@ -260,7 +272,9 @@ export default function ProfilePage() {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {haveCooked.map((item, index) => (
+                            {haveCooked.map((item, index) => {
+                                const img = getRecipeImage(item.recipes);
+                                return (
                                 <Link key={item.recipe_id} href={`/recipe/${item.recipes.id}`}
                                     className="flex items-center gap-3 px-4 py-3 rounded-md"
                                     style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
@@ -269,8 +283,8 @@ export default function ProfilePage() {
                                             {index + 1}
                                         </span>
                                     </div>
-                                    {item.recipes.image_url ? (
-                                        <img src={item.recipes.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+                                    {img ? (
+                                        <img src={img} alt="" className="w-12 h-12 rounded-md object-cover" />
                                     ) : (
                                         <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
                                             <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
@@ -286,7 +300,8 @@ export default function ProfilePage() {
                                         {getDisplayScore(item.elo_score, maxElo)}
                                     </span>
                                 </Link>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </>

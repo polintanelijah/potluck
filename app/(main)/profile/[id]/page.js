@@ -27,7 +27,7 @@ export default function OtherProfilePage({ params }) {
         // Core queries that always work
         const [profileRes, recipesRes, followersRes, followingRes, followCheckRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', id).single(),
-            supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at').eq('created_by', id).order('created_at', { ascending: false }),
+            supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at, posts(image_url)').eq('created_by', id).order('created_at', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id),
             supabase.from('follows').select('follower_id').eq('follower_id', user.id).eq('following_id', id).single(),
@@ -40,10 +40,10 @@ export default function OtherProfilePage({ params }) {
         setIsFollowing(!!followCheckRes.data);
 
         // Optional queries — tables may not exist yet
-        const wantRes = await supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).eq('status', 'want_to_cook').order('created_at', { ascending: false });
+        const wantRes = await supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site, posts(image_url))').eq('user_id', id).eq('status', 'want_to_cook').order('created_at', { ascending: false });
         setWantToCook(wantRes.error ? [] : (wantRes.data || []));
 
-        const eloRes = await supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).order('elo_score', { ascending: false });
+        const eloRes = await supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site, posts(image_url))').eq('user_id', id).order('elo_score', { ascending: false });
         setHaveCooked(eloRes.error ? [] : (eloRes.data || []).filter((r) => r.recipes));
 
         setLoading(false);
@@ -70,7 +70,14 @@ export default function OtherProfilePage({ params }) {
 
     const maxElo = haveCooked.length > 0 ? haveCooked[0].elo_score : 0;
 
+    function getRecipeImage(recipe) {
+        if (recipe.image_url) return recipe.image_url;
+        const postWithImage = recipe.posts?.find((p) => p.image_url);
+        return postWithImage?.image_url || null;
+    }
+
     function RecipeCard({ recipe, rank, eloScore }) {
+        const img = getRecipeImage(recipe);
         return (
             <Link href={`/recipe/${recipe.id}`}
                 className="flex items-center gap-3 px-4 py-3 rounded-md"
@@ -82,8 +89,8 @@ export default function OtherProfilePage({ params }) {
                         </span>
                     </div>
                 )}
-                {recipe.image_url ? (
-                    <img src={recipe.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
+                {img ? (
+                    <img src={img} alt="" className="w-12 h-12 rounded-md object-cover" />
                 ) : (
                     <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
                         <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>

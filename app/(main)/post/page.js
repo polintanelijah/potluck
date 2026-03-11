@@ -88,10 +88,10 @@ export default function PostPage() {
             let imageUrl = null;
             if (imageFile) { imageUrl = await uploadImage(); }
 
-            const { error: sessionError } = await supabase
-                .from('cook_sessions')
-                .insert({ user_id: user.id, recipe_id: recipeId, notes: notes.trim() || null, image_url: imageUrl });
-            if (sessionError) throw sessionError;
+            const { error: postError } = await supabase
+                .from('posts')
+                .insert({ user_id: user.id, recipe_id: recipeId, type: 'cook_log', caption: notes.trim() || null, image_url: imageUrl });
+            if (postError) throw postError;
 
             // Proceed to ranking step
             setRankedRecipeId(recipeId);

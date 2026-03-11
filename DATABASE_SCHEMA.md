@@ -62,7 +62,7 @@ The canonical recipe entity. Can be user-created or extracted from an external U
 | `instructions` | JSONB | Structured array of step objects |
 | `tags` | TEXT[] | Cuisine, dietary labels for filtering |
 | `image_url` | TEXT | |
-| `avg_rating` | NUMERIC(3,2) | Denormalized consensus rating, updated by trigger |
+| `avg_rating` | NUMERIC(3,2) | **DEPRECATED** — star ratings removed. Kept for future global consensus ranking. Not used in MVP. |
 | `total_cooks` | INTEGER | Denormalized count, updated by trigger |
 | `created_by` | UUID | References `profiles(id)`, SET NULL on delete |
 | `created_at` | TIMESTAMPTZ | |
@@ -87,7 +87,7 @@ The social feed entity. Every item in the feed is a post.
 | `type` | TEXT | `'cook_log'`, `'recipe_share'`, `'review'`, `'tip'` |
 | `caption` | TEXT | |
 | `image_url` | TEXT | |
-| `rating` | INTEGER 1–10 | User's rating of the recipe in this post |
+| `deleted_at` | TIMESTAMPTZ | Soft delete — all queries must filter `.is('deleted_at', null)` |
 | `like_count` | INTEGER | Denormalized, updated by trigger |
 | `comment_count` | INTEGER | Denormalized, updated by trigger |
 | `want_to_cook_count` | INTEGER | Denormalized, updated by trigger |
@@ -112,7 +112,6 @@ Tracks the personal relationship between a user and a recipe. Powers the profile
 | `recipe_id` | UUID NOT NULL | References `recipes(id)` |
 | `status` | TEXT | `'want_to_cook'` or `'cooked'` |
 | `post_id` | UUID | References `posts(id)`, links to the cook post |
-| `rating` | INTEGER 1–10 | User's personal rating |
 | `cooked_at` | TIMESTAMPTZ | |
 | `created_at` | TIMESTAMPTZ | |
 
@@ -120,10 +119,8 @@ Tracks the personal relationship between a user and a recipe. Powers the profile
 
 **Reasoning:**
 - **Profile "Want to Cook" tab** → `WHERE user_id = $1 AND status = 'want_to_cook'`
-- **Profile "Stuff You Cooked" tab** → `WHERE user_id = $1 AND status = 'cooked'`
-- **5th tab (cooked by rating)** → `WHERE user_id = $1 AND status = 'cooked' ORDER BY rating DESC`
+- **Profile "Have Cooked" tab** → ordering comes from `recipe_elo_ratings` (Elo score DESC), not from this table. This table tracks the relationship; Elo scores track the ranking.
 - **"Has Cooked" button on posts** → inserts a `cooked` row here + auto-creates a `cooked_it` comment via trigger
-- Partial index `idx_user_recipes_user_rating` on `(user_id, rating DESC) WHERE status = 'cooked'` makes the rankings tab fast.
 
 ---
 
@@ -255,7 +252,6 @@ CREATE POLICY "users can delete own" ON <table> FOR DELETE USING (auth.uid() = <
 | `update_post_cooked_count` | `user_recipes` INSERT (cooked) | +1 on `posts.cooked_count` |
 | `auto_comment_on_cook` | `user_recipes` INSERT (cooked) | Insert `cooked_it` comment |
 | `auto_bookmark_want_to_cook` | `want_to_cook_actions` INSERT | Upsert `user_recipes` (want_to_cook) |
-| `update_recipe_avg_rating` | `user_recipes` INSERT/UPDATE | Recalc `recipes.avg_rating` |
 | `update_recipe_total_cooks` | `user_recipes` INSERT (cooked) | +1 on `recipes.total_cooks` |
 | `update_elo_on_vote` | `pairwise_votes` INSERT | Recalc Elo (K=32) for both recipes per-user, upsert into `recipe_elo_ratings` |
 | `set_updated_at` | Any UPDATE on posts/recipes/profiles/comments | Set `updated_at = NOW()` |

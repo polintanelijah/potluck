@@ -78,6 +78,18 @@ export function AuthProvider({ children }) {
             },
         });
         if (error) throw error;
+
+        // Safety net: explicitly update the profile row in case the
+        // trigger didn't receive the metadata or ran before it was set.
+        if (data?.user?.id) {
+            await supabase.from('profiles').upsert({
+                id: data.user.id,
+                name: name || '',
+                username: username || '',
+                email: email,
+            }, { onConflict: 'id' });
+        }
+
         return data;
     }
 

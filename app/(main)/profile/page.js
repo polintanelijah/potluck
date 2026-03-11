@@ -27,23 +27,30 @@ export default function ProfilePage() {
 
     async function fetchAll() {
         setLoading(true);
-        const [profileRes, recipesRes, wantToCookRes, eloRes, followersRes, followingRes] = await Promise.all([
+
+        // Core queries that always work
+        const [profileRes, recipesRes, followersRes, followingRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
             supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at').eq('created_by', user.id).order('created_at', { ascending: false }),
-            supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).eq('status', 'want_to_cook').order('created_at', { ascending: false }),
-            supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).order('elo_score', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', user.id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', user.id),
         ]);
+
         setProfileData(profileRes.data);
         setEditName(profileRes.data?.name || '');
         setEditUsername(profileRes.data?.username || '');
         setEditBio(profileRes.data?.bio || '');
         setRecipes(recipesRes.data || []);
-        setWantToCook(wantToCookRes.data || []);
-        setHaveCooked((eloRes.data || []).filter((r) => r.recipes));
         setFollowerCount(followersRes.count || 0);
         setFollowingCount(followingRes.count || 0);
+
+        // Optional queries — these tables may not exist yet
+        const wantRes = await supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).eq('status', 'want_to_cook').order('created_at', { ascending: false });
+        setWantToCook(wantRes.error ? [] : (wantRes.data || []));
+
+        const eloRes = await supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).order('elo_score', { ascending: false });
+        setHaveCooked(eloRes.error ? [] : (eloRes.data || []).filter((r) => r.recipes));
+
         setLoading(false);
     }
 
@@ -117,7 +124,7 @@ export default function ProfilePage() {
                 </div>
             </div>
 
-            {/* Follower/following stats (non-tappable) */}
+            {/* Follower/following stats */}
             {!editMode && (
                 <div className="flex gap-4 mb-4 px-1">
                     <span className="text-sm">
@@ -139,7 +146,7 @@ export default function ProfilePage() {
                 </div>
             )}
 
-            {/* Tab bar: Your Recipes / Want to Cook / Have Cooked */}
+            {/* Tab bar */}
             {!editMode && (
                 <div className="flex gap-0 mb-4 rounded-md overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
                     <button
@@ -249,7 +256,7 @@ export default function ProfilePage() {
                 <>
                     {haveCooked.length === 0 ? (
                         <div className="text-center py-8">
-                            <p className="note-text text-sm">You haven&apos;t logged any cooks yet. <Link href="/post" style={{ color: 'var(--color-accent)' }}>Cook something!</Link></p>
+                            <p className="note-text text-sm">You haven&apos;t ranked any cooks yet. <Link href="/post" style={{ color: 'var(--color-accent)' }}>Cook something!</Link></p>
                         </div>
                     ) : (
                         <div className="space-y-2">

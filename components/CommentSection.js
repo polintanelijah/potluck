@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function CommentSection({ sessionId }) {
+export default function CommentSection({ postId }) {
     const [comments, setComments] = useState([]);
     const [newComment, setNewComment] = useState('');
     const [loading, setLoading] = useState(true);
@@ -14,13 +14,13 @@ export default function CommentSection({ sessionId }) {
 
     useEffect(() => {
         fetchComments();
-    }, [sessionId]);
+    }, [postId]);
 
     async function fetchComments() {
         const { data } = await supabase
             .from('comments')
             .select('*, profiles:user_id(name, avatar_url)')
-            .eq('cook_session_id', sessionId)
+            .eq('post_id', postId)
             .order('created_at', { ascending: true });
         setComments(data || []);
         setLoading(false);
@@ -33,7 +33,7 @@ export default function CommentSection({ sessionId }) {
         setSubmitting(true);
         const { error } = await supabase.from('comments').insert({
             user_id: user.id,
-            cook_session_id: sessionId,
+            post_id: postId,
             content: newComment.trim(),
         });
 
@@ -95,7 +95,6 @@ export default function CommentSection({ sessionId }) {
                 </div>
             )}
 
-            {/* Comment input */}
             <form onSubmit={handleSubmit} className="flex gap-2">
                 <input
                     type="text"

@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import CookSessionCard from '@/components/CookSessionCard';
+import PostCard from '@/components/PostCard';
 
 export default function FeedPage() {
-    const [sessions, setSessions] = useState([]);
+    const [posts, setPosts] = useState([]);
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
     const supabase = getSupabase();
@@ -27,25 +27,25 @@ export default function FeedPage() {
         followingIds.push(user.id);
 
         const { data } = await supabase
-            .from('cook_sessions')
+            .from('posts')
             .select(`
-        *,
-        profiles:user_id(id, name, username, avatar_url),
-        recipes:recipe_id(id, title, url, image_url),
-        likes(user_id),
-        comments(count)
-      `)
+                *,
+                profiles:user_id(id, name, username, avatar_url),
+                recipes:recipe_id(id, title, url, image_url),
+                likes(user_id),
+                comments(count)
+            `)
+            .is('deleted_at', null)
             .in('user_id', followingIds)
             .order('created_at', { ascending: false })
             .limit(50);
 
-        setSessions(data || []);
+        setPosts(data || []);
         setLoading(false);
     }
 
     return (
         <div className="px-4 py-6">
-            {/* Header */}
             <div className="mb-6">
                 <h1 className="text-2xl" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
                     Potluck
@@ -53,12 +53,11 @@ export default function FeedPage() {
                 <p className="note-text text-xs mt-0.5">what your friends are cooking</p>
             </div>
 
-            {/* Feed */}
             {loading ? (
                 <div className="flex justify-center py-12">
                     <div className="spinner" />
                 </div>
-            ) : sessions.length === 0 ? (
+            ) : posts.length === 0 ? (
                 <div className="text-center py-16 animate-fade-in">
                     <h2 className="text-lg mb-2" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
                         Your table is empty
@@ -67,15 +66,15 @@ export default function FeedPage() {
                         Follow some friends to see what they&apos;re making,
                     </p>
                     <p className="note-text text-sm">
-                        or post your first cook session.
+                        or log your first cook.
                     </p>
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {sessions.map((session) => (
-                        <CookSessionCard
-                            key={session.id}
-                            session={session}
+                    {posts.map((post) => (
+                        <PostCard
+                            key={post.id}
+                            post={post}
                             currentUserId={user.id}
                         />
                     ))}

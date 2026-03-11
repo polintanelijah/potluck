@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-export default function LikeButton({ sessionId, initialLiked = false, initialCount = 0 }) {
+export default function LikeButton({ postId, initialLiked = false, initialCount = 0 }) {
     const [liked, setLiked] = useState(initialLiked);
     const [count, setCount] = useState(initialCount);
     const [animating, setAnimating] = useState(false);
@@ -26,11 +26,11 @@ export default function LikeButton({ sessionId, initialLiked = false, initialCou
                     .from('likes')
                     .delete()
                     .eq('user_id', user.id)
-                    .eq('cook_session_id', sessionId);
+                    .eq('post_id', postId);
             } else {
                 await supabase.from('likes').insert({
                     user_id: user.id,
-                    cook_session_id: sessionId,
+                    post_id: postId,
                 });
             }
         } catch {

@@ -24,7 +24,13 @@ app/
   (main)/         # Main app routes: feed, discover, profile, etc.
   layout.js       # Root layout with providers
   page.js         # Root page (redirect logic)
-components/       # Shared UI components
+components/
+  PostCard.js     # Feed card component (replaces legacy CookSessionCard)
+  LikeButton.js   # Like toggle (uses post_id)
+  CommentSection.js # Comments (uses post_id)
+  RankingFlow.js  # Binary search pairwise voting UI
+  WantToCookButton.js # Bookmark button (uses want_to_cook_actions)
+  BottomNav.js    # Bottom tab bar
 contexts/
   AuthContext.js  # Global auth state via React Context
 lib/
@@ -32,6 +38,18 @@ lib/
   supabase-server.js  # Server client (createServerClient, for Server Components + Actions)
 middleware.js     # Auth session refresh — runs on every request
 ```
+
+### SQL Files
+
+- `supabase-schema-unified.sql` — **THE** schema file. Run this on a clean Supabase project. Contains all tables, indexes, RLS, triggers, and functions.
+- `supabase-schema.sql` — LEGACY, do not use. References old `cook_sessions` table.
+- `supabase-migration-missing-tables.sql` — LEGACY, superseded by unified schema.
+- `supabase-elo-ranking.sql` — LEGACY, superseded by unified schema.
+
+### Legacy Components (unused, safe to delete)
+
+- `components/CookSessionCard.js` — replaced by `PostCard.js`
+- `components/StarRating.js` — star ratings removed, replaced by Elo pairwise ranking
 
 ---
 
@@ -65,17 +83,21 @@ These are the most common ways agents go wrong on this codebase:
 
 1. **Feed queries must filter by follows** — never return posts from users the viewer doesn't follow. Always join through the `follows` table.
 
-2. **Never duplicate trigger logic in application code** — likes, comments, want-to-cook, and has-cooked counts are maintained by database triggers. Do not write app-layer code to update these counts.
+2. **All feed queries must filter `deleted_at IS NULL`** — posts use soft deletes. Use `.is('deleted_at', null)` on every posts query.
 
-3. **Soft deletes only on posts** — posts have a `deleted_at` column. Never hard delete. All post queries must include `WHERE deleted_at IS NULL`.
+3. **Never duplicate trigger logic in application code** — likes, comments, want-to-cook, and has-cooked counts are maintained by database triggers. Do not write app-layer code to update these counts.
 
-4. **Elo updates must be transactional** — both recipes in a pairwise vote must update atomically. No partial writes.
+4. **Elo updates must be transactional** — both recipes in a pairwise vote must update atomically via the DB trigger. No partial writes.
 
-5. **URL metadata extraction is server-side only** — clients submit a URL and nothing else. The server fetches and parses all recipe metadata.
+5. **Rating is pairwise Elo, not star ratings** — there are no star ratings. When a user logs a cook, they rank the recipe via binary search pairwise comparisons. Display scores are 0–10 (normalized: highest Elo = 10). Do not add star rating UI.
 
-6. **Recipes are globally readable; posts are follower-gated** — RLS on `recipes` allows public SELECT. RLS on `posts` restricts to the author and their followers.
+6. **URL metadata extraction is server-side only** — clients submit a URL and nothing else.
 
-7. **Do not add TypeScript** — the project is plain JS. Do not introduce `.ts`/`.tsx` files or type annotations.
+7. **Recipes are globally readable; posts are follower-gated** — RLS on `recipes` allows public SELECT.
+
+8. **Do not add TypeScript** — the project is plain JS. Do not introduce `.ts`/`.tsx` files or type annotations.
+
+9. **Table naming** — the social feed table is `posts` (not `cook_sessions`). The FK on likes/comments is `post_id` (not `cook_session_id`). Post text field is `caption` (not `notes`).
 
 ---
 
@@ -91,8 +113,6 @@ CREATE POLICY "users can update own" ON <table> FOR UPDATE USING (auth.uid() = u
 CREATE POLICY "users can delete own" ON <table> FOR DELETE USING (auth.uid() = user_id);
 ```
 
-Exception: `posts` and `comments` have follower-scoped SELECT (see `FEATURES.md §4`).
-
 ---
 
 ## What's Not Built Yet (MVP Scope)
@@ -103,3 +123,5 @@ Do not build these unless explicitly asked:
 - Global recipe leaderboard (Elo is per-user, not global)
 - Invite system (registration is open)
 - Notifications (triggers store data for this, but no UI)
+- "Has Cooked" button on feed posts (ranking flow needs to be triggered from posts too)
+- Want-to-cook button on feed posts (table exists, button component exists, but not wired into feed query yet)

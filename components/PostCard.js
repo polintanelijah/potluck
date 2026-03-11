@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import LikeButton from './LikeButton';
 
-export default function CookSessionCard({ session, currentUserId }) {
-    const profile = session.profiles;
-    const recipe = session.recipes;
+export default function PostCard({ post, currentUserId }) {
+    const profile = post.profiles;
+    const recipe = post.recipes;
 
     function timeAgo(date) {
         const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -19,9 +19,9 @@ export default function CookSessionCard({ session, currentUserId }) {
         return `${Math.floor(days / 7)}w ago`;
     }
 
-    const isLiked = session.likes?.some((l) => l.user_id === currentUserId);
-    const likeCount = session.likes?.length || 0;
-    const commentCount = session.comments?.[0]?.count || 0;
+    const isLiked = post.likes?.some((l) => l.user_id === currentUserId);
+    const likeCount = post.likes?.length || 0;
+    const commentCount = post.comments?.[0]?.count || 0;
 
     return (
         <div className="glass-card overflow-hidden animate-slide-up">
@@ -43,7 +43,7 @@ export default function CookSessionCard({ session, currentUserId }) {
                         </p>
                     </Link>
                     <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                        {profile?.username ? `@${profile.username}` : ''} · {timeAgo(session.created_at)}
+                        {profile?.username ? `@${profile.username}` : ''} · {timeAgo(post.created_at)}
                     </p>
                 </div>
             </div>
@@ -58,12 +58,12 @@ export default function CookSessionCard({ session, currentUserId }) {
             </div>
 
             {/* Image */}
-            {session.image_url && (
-                <Link href={`/session/${session.id}`}>
+            {post.image_url && (
+                <Link href={`/session/${post.id}`}>
                     <div className="relative w-full mx-4 rounded-md overflow-hidden" style={{ aspectRatio: '4/3', width: 'calc(100% - 2rem)' }}>
                         <img
-                            src={session.image_url}
-                            alt={recipe?.title || 'Cook session'}
+                            src={post.image_url}
+                            alt={recipe?.title || 'Cook'}
                             className="w-full h-full object-cover"
                         />
                     </div>
@@ -72,9 +72,9 @@ export default function CookSessionCard({ session, currentUserId }) {
 
             {/* Notes and actions */}
             <div className="px-4 py-3 space-y-2">
-                {session.notes && (
+                {post.caption && (
                     <p className="text-sm leading-relaxed note-text">
-                        &ldquo;{session.notes}&rdquo;
+                        &ldquo;{post.caption}&rdquo;
                     </p>
                 )}
 
@@ -94,12 +94,12 @@ export default function CookSessionCard({ session, currentUserId }) {
                 <div className="flex items-center gap-4 pt-2"
                     style={{ borderTop: '1px solid var(--color-border-light)' }}>
                     <LikeButton
-                        sessionId={session.id}
+                        postId={post.id}
                         initialLiked={isLiked}
                         initialCount={likeCount}
                     />
                     <Link
-                        href={`/session/${session.id}`}
+                        href={`/session/${post.id}`}
                         className="flex items-center gap-1.5"
                         style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}
                     >

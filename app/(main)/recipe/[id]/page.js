@@ -3,7 +3,6 @@
 import { useState, useEffect, use } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import StarRating from '@/components/StarRating';
 import Link from 'next/link';
 
 export default function RecipeDetailPage({ params }) {
@@ -19,16 +18,11 @@ export default function RecipeDetailPage({ params }) {
     async function fetchRecipe() {
         const [recipeRes, sessionsRes] = await Promise.all([
             supabase.from('recipes').select('*, profiles:created_by(name)').eq('id', id).single(),
-            supabase.from('cook_sessions').select('*, profiles:user_id(id, name, avatar_url)').eq('recipe_id', id).order('created_at', { ascending: false }),
+            supabase.from('posts').select('*, profiles:user_id(id, name, avatar_url)').eq('recipe_id', id).is('deleted_at', null).order('created_at', { ascending: false }),
         ]);
         setRecipe(recipeRes.data);
         setSessions(sessionsRes.data || []);
         setLoading(false);
-    }
-
-    function avgRating() {
-        if (!sessions.length) return 0;
-        return (sessions.reduce((sum, s) => sum + s.rating, 0) / sessions.length).toFixed(1);
     }
 
     function timeAgo(date) {
@@ -65,11 +59,6 @@ export default function RecipeDetailPage({ params }) {
                 <div className="text-center flex-1">
                     <p className="font-bold text-lg" style={{ fontFamily: "'DM Mono', monospace" }}>{sessions.length}</p>
                     <p className="meta-label">times cooked</p>
-                </div>
-                <div className="w-px h-8" style={{ background: 'var(--color-border)' }} />
-                <div className="text-center flex-1">
-                    <p className="font-bold text-lg" style={{ fontFamily: "'DM Mono', monospace" }}>{avgRating()}</p>
-                    <p className="meta-label">avg rating</p>
                 </div>
             </div>
 
@@ -120,12 +109,9 @@ export default function RecipeDetailPage({ params }) {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{s.profiles?.name}</p>
-                                {s.notes && <p className="note-text text-xs truncate">{s.notes}</p>}
+                                {s.caption && <p className="note-text text-xs truncate">{s.caption}</p>}
                             </div>
-                            <div className="flex items-center gap-2">
-                                <StarRating rating={s.rating} size="sm" />
-                                <span className="meta-label" style={{ textTransform: 'none' }}>{timeAgo(s.created_at)}</span>
-                            </div>
+                            <span className="meta-label" style={{ textTransform: 'none' }}>{timeAgo(s.created_at)}</span>
                         </Link>
                     ))}
                 </div>

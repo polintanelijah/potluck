@@ -71,7 +71,6 @@
 | Trigger Target | Action Triggered | System Result |
 | :--- | :--- | :--- |
 | `likes` / `comments` / `want_to_cook_actions` | `INSERT` or `DELETE` | Updates respective `_count` column on the parent `posts` row. |
-| `user_recipes` (rating) | `UPDATE` | Recalculates `avg_rating` on the parent `recipes` row. |
 | `user_recipes` (status = cooked) | `INSERT` linked to a `post_id` | Generates a `cooked_it` system comment on that post. |
 | `pairwise_votes` | `INSERT` | Triggers Elo math function (K=32) to update `recipe_elo_ratings` for both recipes atomically. |
 
@@ -100,9 +99,7 @@ The app has four primary tabs in the following order:
 The profile has three sub-tabs:
 * **Your Recipes** — Recipes the user created or imported. Distinguishes between recipes authored by the user vs. sourced elsewhere.
 * **Want to Cook** — Recipes bookmarked via the `want_to_cook` state in `user_recipes`.
-* **Have Cooked** — Recipes with `status = cooked` in `user_recipes`.
-
-A fifth tab (see §2.6) renders the user's personal pairwise-ranked recipe list.
+* **Have Cooked** — The user's personal Elo-ranked recipe list (see §2.6). Ordered by `recipe_elo_ratings.elo_score DESC`, with normalized 0–10 display scores. The highest-rated recipe shows as 10.0. This IS the ranking tab — there is no separate rankings view.
 
 ### 5.3. Profile-Level Social Metrics
 In addition to follower/following counts, a user's profile displays:

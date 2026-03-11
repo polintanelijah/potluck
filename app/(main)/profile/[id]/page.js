@@ -23,22 +23,29 @@ export default function OtherProfilePage({ params }) {
 
     async function fetchAll() {
         setLoading(true);
-        const [profileRes, recipesRes, wantToCookRes, eloRes, followersRes, followingRes, followCheckRes] = await Promise.all([
+
+        // Core queries that always work
+        const [profileRes, recipesRes, followersRes, followingRes, followCheckRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', id).single(),
             supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at').eq('created_by', id).order('created_at', { ascending: false }),
-            supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).eq('status', 'want_to_cook').order('created_at', { ascending: false }),
-            supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).order('elo_score', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id),
             supabase.from('follows').select('follower_id').eq('follower_id', user.id).eq('following_id', id).single(),
         ]);
+
         setProfileData(profileRes.data);
         setRecipes(recipesRes.data || []);
-        setWantToCook(wantToCookRes.data || []);
-        setHaveCooked((eloRes.data || []).filter((r) => r.recipes));
         setFollowerCount(followersRes.count || 0);
         setFollowingCount(followingRes.count || 0);
         setIsFollowing(!!followCheckRes.data);
+
+        // Optional queries — tables may not exist yet
+        const wantRes = await supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).eq('status', 'want_to_cook').order('created_at', { ascending: false });
+        setWantToCook(wantRes.error ? [] : (wantRes.data || []));
+
+        const eloRes = await supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).order('elo_score', { ascending: false });
+        setHaveCooked(eloRes.error ? [] : (eloRes.data || []).filter((r) => r.recipes));
+
         setLoading(false);
     }
 

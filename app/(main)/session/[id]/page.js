@@ -3,26 +3,25 @@
 import { useState, useEffect, use } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import StarRating from '@/components/StarRating';
 import LikeButton from '@/components/LikeButton';
 import CommentSection from '@/components/CommentSection';
 import Link from 'next/link';
 
-export default function SessionDetailPage({ params }) {
+export default function PostDetailPage({ params }) {
     const { id } = use(params);
-    const [session, setSession] = useState(null);
+    const [post, setPost] = useState(null);
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
     const supabase = getSupabase();
 
-    useEffect(() => { if (id) fetchSession(); }, [id]);
+    useEffect(() => { if (id) fetchPost(); }, [id]);
 
-    async function fetchSession() {
+    async function fetchPost() {
         const { data } = await supabase
-            .from('cook_sessions')
+            .from('posts')
             .select(`*, profiles:user_id(id, name, avatar_url), recipes:recipe_id(id, title, url, image_url, ingredients, instructions), likes(user_id)`)
             .eq('id', id).single();
-        setSession(data);
+        setPost(data);
         setLoading(false);
     }
 
@@ -39,12 +38,12 @@ export default function SessionDetailPage({ params }) {
     }
 
     if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
-    if (!session) return <div className="text-center py-16"><p className="note-text">Session not found</p></div>;
+    if (!post) return <div className="text-center py-16"><p className="note-text">Post not found</p></div>;
 
-    const profile = session.profiles;
-    const recipe = session.recipes;
-    const isLiked = session.likes?.some((l) => l.user_id === user?.id);
-    const likeCount = session.likes?.length || 0;
+    const profile = post.profiles;
+    const recipe = post.recipes;
+    const isLiked = post.likes?.some((l) => l.user_id === user?.id);
+    const likeCount = post.likes?.length || 0;
 
     return (
         <div className="px-4 py-6 animate-fade-in">
@@ -62,27 +61,26 @@ export default function SessionDetailPage({ params }) {
                 </Link>
                 <div>
                     <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{profile?.name}</p>
-                    <p className="meta-label" style={{ textTransform: 'none' }}>{timeAgo(session.created_at)}</p>
+                    <p className="meta-label" style={{ textTransform: 'none' }}>{timeAgo(post.created_at)}</p>
                 </div>
             </div>
 
             {/* Image */}
-            {session.image_url && (
+            {post.image_url && (
                 <div className="rounded-md overflow-hidden mb-4" style={{ maxHeight: '380px' }}>
-                    <img src={session.image_url} alt={recipe?.title} className="w-full object-cover" />
+                    <img src={post.image_url} alt={recipe?.title} className="w-full object-cover" />
                 </div>
             )}
 
-            {/* Recipe title + rating */}
-            <div className="flex items-center justify-between mb-2">
+            {/* Recipe title */}
+            <div className="mb-2">
                 <Link href={`/recipe/${recipe?.id}`}>
                     <h1 className="text-xl" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{recipe?.title}</h1>
                 </Link>
-                <StarRating rating={session.rating} size="md" />
             </div>
 
-            {session.notes && (
-                <p className="note-text text-sm leading-relaxed mb-4">&ldquo;{session.notes}&rdquo;</p>
+            {post.caption && (
+                <p className="note-text text-sm leading-relaxed mb-4">&ldquo;{post.caption}&rdquo;</p>
             )}
 
             {recipe?.url && (
@@ -93,11 +91,11 @@ export default function SessionDetailPage({ params }) {
             )}
 
             <div className="flex items-center gap-4 pb-4 mb-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <LikeButton sessionId={session.id} initialLiked={isLiked} initialCount={likeCount} />
+                <LikeButton postId={post.id} initialLiked={isLiked} initialCount={likeCount} />
             </div>
 
             <h2 className="font-bold text-sm mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Comments</h2>
-            <CommentSection sessionId={session.id} />
+            <CommentSection postId={post.id} />
         </div>
     );
 }

@@ -27,11 +27,11 @@ export default function ProfilePage() {
 
     async function fetchAll() {
         setLoading(true);
-        const [profileRes, recipesRes, wantToCookRes, haveCookedRes, followersRes, followingRes] = await Promise.all([
+        const [profileRes, recipesRes, wantToCookRes, eloRes, followersRes, followingRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', user.id).single(),
             supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at').eq('created_by', user.id).order('created_at', { ascending: false }),
             supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).eq('status', 'want_to_cook').order('created_at', { ascending: false }),
-            supabase.from('user_recipes').select('id, rating, cooked_at, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).eq('status', 'cooked').order('cooked_at', { ascending: false }),
+            supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', user.id).order('elo_score', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', user.id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', user.id),
         ]);
@@ -41,10 +41,15 @@ export default function ProfilePage() {
         setEditBio(profileRes.data?.bio || '');
         setRecipes(recipesRes.data || []);
         setWantToCook(wantToCookRes.data || []);
-        setHaveCooked(haveCookedRes.data || []);
+        setHaveCooked((eloRes.data || []).filter((r) => r.recipes));
         setFollowerCount(followersRes.count || 0);
         setFollowingCount(followingRes.count || 0);
         setLoading(false);
+    }
+
+    function getDisplayScore(eloScore, maxElo) {
+        if (!maxElo || maxElo <= 0) return '10.0';
+        return ((eloScore / maxElo) * 10).toFixed(1);
     }
 
     async function saveProfile() {
@@ -73,6 +78,8 @@ export default function ProfilePage() {
     }
 
     if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
+
+    const maxElo = haveCooked.length > 0 ? haveCooked[0].elo_score : 0;
 
     return (
         <div className="px-4 py-6">
@@ -185,7 +192,7 @@ export default function ProfilePage() {
                                         <img src={recipe.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
                                     ) : (
                                         <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
-                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>🍽</span>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
                                         </div>
                                     )}
                                     <div className="flex-1 min-w-0">
@@ -222,7 +229,7 @@ export default function ProfilePage() {
                                         <img src={item.recipes.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
                                     ) : (
                                         <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
-                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>🍽</span>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
                                         </div>
                                     )}
                                     <div className="flex-1 min-w-0">
@@ -246,15 +253,20 @@ export default function ProfilePage() {
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {haveCooked.map((item) => (
-                                <Link key={item.id} href={`/recipe/${item.recipes.id}`}
+                            {haveCooked.map((item, index) => (
+                                <Link key={item.recipe_id} href={`/recipe/${item.recipes.id}`}
                                     className="flex items-center gap-3 px-4 py-3 rounded-md"
                                     style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                                    <div className="flex-shrink-0 w-7 text-center">
+                                        <span className="text-xs font-bold" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                                            {index + 1}
+                                        </span>
+                                    </div>
                                     {item.recipes.image_url ? (
                                         <img src={item.recipes.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
                                     ) : (
                                         <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
-                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>🍽</span>
+                                            <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
                                         </div>
                                     )}
                                     <div className="flex-1 min-w-0">
@@ -263,11 +275,9 @@ export default function ProfilePage() {
                                             <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{item.recipes.source_site}</p>
                                         )}
                                     </div>
-                                    {item.rating && (
-                                        <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                                            {item.rating}/10
-                                        </span>
-                                    )}
+                                    <span className="text-sm font-bold" style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}>
+                                        {getDisplayScore(item.elo_score, maxElo)}
+                                    </span>
                                 </Link>
                             ))}
                         </div>

@@ -194,18 +194,25 @@ Head-to-head recipe comparisons for ranking.
 ---
 
 ### `recipe_elo_ratings`
-Computed Elo ranking scores per recipe.
+Per-user Elo ranking scores. Each row represents one user's personal score for one recipe.
 
 | Column | Type | Notes |
 |---|---|---|
+| `user_id` | UUID PK | References `profiles(id)` |
 | `recipe_id` | UUID PK | References `recipes(id)` |
 | `elo_score` | NUMERIC(8,2) | Default 1500 |
-| `total_comparisons` | INTEGER | |
-| `wins` | INTEGER | |
-| `losses` | INTEGER | |
+| `total_comparisons` | INTEGER | Default 0 |
+| `wins` | INTEGER | Default 0 |
+| `losses` | INTEGER | Default 0 |
 | `updated_at` | TIMESTAMPTZ | |
 
-**Reasoning:** Trigger on `pairwise_votes` INSERT recalculates Elo for both recipes. Pre-computed scores make ranking queries O(1) via `idx_elo_score`. Standard Elo K-factor can be tuned as data grows.
+**Composite PK:** `(user_id, recipe_id)` — each user has their own Elo score for each recipe they've cooked.
+
+**Reasoning:**
+- Trigger on `pairwise_votes` INSERT recalculates Elo for both recipes atomically (K=32).
+- Pre-computed scores make ranking queries O(1) via index on `(user_id, elo_score DESC)`.
+- **Display scores are normalized client-side:** `display_score = (elo / max_elo_for_user) * 10`. The highest-rated recipe always shows as 10.0.
+- **Beli-style binary search:** When ranking a new recipe, the client uses the Elo-sorted list to pick the middle recipe for comparison, halving the search space each vote until the insertion point is found (~log2(n) comparisons).
 
 ---
 
@@ -219,7 +226,7 @@ Computed Elo ranking scores per recipe.
 
 4. **Separate `want_to_cook_actions` from `user_recipes`** — The action table tracks the social event (which post, when) for notifications. The trigger auto-syncs to `user_recipes` so the profile list stays current.
 
-5. **Elo for pairwise rankings** — Simple, well-understood algorithm. Raw votes stored in `pairwise_votes` means we can switch to Bradley-Terry or TrueSkill later without data loss.
+5. **Elo for pairwise rankings with Beli-style binary search** — New recipes are ranked via binary search against existing cooked recipes (~log2(n) comparisons). Raw Elo scores are per-user and normalized to a 0–10 display scale (highest = 10). Raw votes stored in `pairwise_votes` means we can switch to Bradley-Terry or TrueSkill later without data loss.
 
 6. **All accounts public** — RLS policies allow `SELECT` for everyone, `INSERT/UPDATE/DELETE` restricted to `auth.uid()` matching the row owner.
 
@@ -250,6 +257,6 @@ CREATE POLICY "users can delete own" ON <table> FOR DELETE USING (auth.uid() = <
 | `auto_bookmark_want_to_cook` | `want_to_cook_actions` INSERT | Upsert `user_recipes` (want_to_cook) |
 | `update_recipe_avg_rating` | `user_recipes` INSERT/UPDATE | Recalc `recipes.avg_rating` |
 | `update_recipe_total_cooks` | `user_recipes` INSERT (cooked) | +1 on `recipes.total_cooks` |
-| `update_elo_on_vote` | `pairwise_votes` INSERT | Recalc Elo for both recipes |
+| `update_elo_on_vote` | `pairwise_votes` INSERT | Recalc Elo (K=32) for both recipes per-user, upsert into `recipe_elo_ratings` |
 | `set_updated_at` | Any UPDATE on posts/recipes/profiles/comments | Set `updated_at = NOW()` |
 | `handle_new_user` | `auth.users` INSERT | Auto-create `profiles` row |

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
-import StarRating from '@/components/StarRating';
+import RankingFlow from '@/components/RankingFlow';
 
 export default function PostPage() {
     const [step, setStep] = useState(1);
@@ -18,13 +18,17 @@ export default function PostPage() {
     const [ingredients, setIngredients] = useState('');
     const [instructions, setInstructions] = useState('');
 
-    const [rating, setRating] = useState(0);
     const [notes, setNotes] = useState('');
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+
+    // Step 3: ranking
+    const [rankedRecipeId, setRankedRecipeId] = useState(null);
+    const [rankedRecipeTitle, setRankedRecipeTitle] = useState('');
+
     const { user } = useAuth();
     const supabase = getSupabase();
     const router = useRouter();
@@ -63,12 +67,12 @@ export default function PostPage() {
 
     async function handleSubmit(e) {
         e.preventDefault();
-        if (rating === 0) { setError('Give it a rating first'); return; }
         setError('');
         setSubmitting(true);
 
         try {
             let recipeId = selectedRecipe?.id;
+            let recipeName = selectedRecipe?.title;
 
             if (isNewRecipe) {
                 if (!title.trim()) { setError('Every recipe needs a name'); setSubmitting(false); return; }
@@ -78,6 +82,7 @@ export default function PostPage() {
                     .select().single();
                 if (recipeError) throw recipeError;
                 recipeId = newRecipe.id;
+                recipeName = title.trim();
             }
 
             let imageUrl = null;
@@ -85,10 +90,13 @@ export default function PostPage() {
 
             const { error: sessionError } = await supabase
                 .from('cook_sessions')
-                .insert({ user_id: user.id, recipe_id: recipeId, rating, notes: notes.trim() || null, image_url: imageUrl });
+                .insert({ user_id: user.id, recipe_id: recipeId, notes: notes.trim() || null, image_url: imageUrl });
             if (sessionError) throw sessionError;
 
-            router.push('/feed');
+            // Proceed to ranking step
+            setRankedRecipeId(recipeId);
+            setRankedRecipeTitle(recipeName);
+            setStep(3);
         } catch (err) {
             console.error('Post error:', err);
             setError(err.message || 'Something went wrong');
@@ -104,9 +112,11 @@ export default function PostPage() {
     return (
         <div className="px-4 py-6">
             <h1 className="text-2xl mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
-                Log a Cook
+                {step === 3 ? 'Rank It' : 'Log a Cook'}
             </h1>
-            <p className="note-text text-sm mb-6">what did you make this time?</p>
+            <p className="note-text text-sm mb-6">
+                {step === 3 ? 'where does it land on your list?' : 'what did you make this time?'}
+            </p>
 
             {error && (
                 <div className="text-sm px-4 py-3 rounded-md mb-4"
@@ -186,7 +196,7 @@ export default function PostPage() {
                                 <textarea className="input-field" placeholder="How did you make it?" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={4} />
                             </div>
                             <button onClick={() => setStep(2)} className="btn-primary w-full" disabled={!title.trim()}>
-                                Next: Rate Your Cook
+                                Next
                             </button>
                         </div>
                     )}
@@ -208,12 +218,6 @@ export default function PostPage() {
                     <div className="px-4 py-3 rounded-md" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                         <p className="meta-label" style={{ textTransform: 'none', marginBottom: '0.25rem' }}>cooking</p>
                         <p className="font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>{isNewRecipe ? title : selectedRecipe?.title}</p>
-                    </div>
-
-                    {/* Rating */}
-                    <div>
-                        <label className="label">How was it?</label>
-                        <StarRating rating={rating} onChange={setRating} size="lg" />
                     </div>
 
                     {/* Notes */}
@@ -259,10 +263,18 @@ export default function PostPage() {
                         )}
                     </div>
 
-                    <button type="submit" className="btn-primary w-full" disabled={submitting || rating === 0}>
+                    <button type="submit" className="btn-primary w-full" disabled={submitting}>
                         {submitting ? 'Posting...' : 'Log This Cook'}
                     </button>
                 </form>
+            )}
+
+            {step === 3 && (
+                <RankingFlow
+                    recipeId={rankedRecipeId}
+                    recipeTitle={rankedRecipeTitle}
+                    onComplete={() => router.push('/profile')}
+                />
             )}
         </div>
     );

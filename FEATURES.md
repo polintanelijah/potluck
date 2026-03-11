@@ -52,13 +52,16 @@
 * **Agent Reasoning:**
     * When a user clicks "Has Cooked" on a friend's post, the system automatically generates a `cooked_it` comment. This creates organic activity without manual typing.
 
-### 2.6. Pairwise Ranking (The "5th Tab" — Personal Ranked Recipe List)
-* **Feature Scope:** Users vote on head-to-head matchups between recipes they have personally cooked. The result is a ranked list of that user's cooked recipes ordered by their Elo rating, displayed on their profile as the 5th tab.
+### 2.6. Pairwise Ranking — Beli-Style Binary Search Insertion
+* **Feature Scope:** When a user logs a new cook, they rank it against their existing cooked recipes via a **binary search of pairwise comparisons**. Each comparison is a simple A/B vote ("Which did you prefer?"). After ~log2(n) comparisons, the recipe is inserted at the correct position. The result is a personal ranked recipe list displayed on the "Have Cooked" profile tab, with scores normalized to a **0–10 scale** where the top recipe is always 10.
 * **Primary Tables:** `pairwise_votes`, `recipe_elo_ratings`
 * **Agent Reasoning:**
-    * Pairwise voting forces a definitive preference over skewed 1-5 star systems.
-    * `recipe_elo_ratings` is scoped per user — it represents *that user's* personal ranking of recipes they have cooked, not a global leaderboard. Elo math is computed per `(user_id, recipe_id)` pair.
-    * The 5th tab on the user's profile renders their cooked recipes ordered by their personal Elo score descending. It is only visible to followers (same RLS rules as posts).
+    * **Binary search insertion flow:** The system presents the user's middle-ranked recipe first. Based on the user's preference, it halves the search space and presents the next comparison. This repeats until the insertion point is found. If the user has 0 existing cooked recipes, no comparisons are needed (the recipe is auto-ranked #1).
+    * **Elo as underlying score:** Each pairwise vote updates both recipes' Elo scores via a database trigger (K=32, standard formula). Raw Elo scores determine sort order.
+    * **0–10 normalized display:** The user's highest Elo recipe always displays as **10.0**. All other recipes scale proportionally: `display_score = (recipe_elo / max_elo) * 10`. This normalization is computed client-side from raw Elo — no extra DB column needed.
+    * `recipe_elo_ratings` is scoped per user via composite key `(user_id, recipe_id)` — it represents *that user's* personal ranking, not a global leaderboard.
+    * **Users rank all recipes they have cooked, including their own.** The ranking system is personal and covers every recipe in the user's cooked list.
+    * The "Have Cooked" profile tab renders recipes ordered by personal Elo score descending with the normalized 0–10 display score.
     * This is explicitly **not** a global aggregate leaderboard in the MVP. Global consensus rankings are a future feature.
 
 ---
@@ -70,7 +73,7 @@
 | `likes` / `comments` / `want_to_cook_actions` | `INSERT` or `DELETE` | Updates respective `_count` column on the parent `posts` row. |
 | `user_recipes` (rating) | `UPDATE` | Recalculates `avg_rating` on the parent `recipes` row. |
 | `user_recipes` (status = cooked) | `INSERT` linked to a `post_id` | Generates a `cooked_it` system comment on that post. |
-| `pairwise_votes` | `INSERT` | Triggers Elo math function to update `recipe_elo_ratings` for both recipes. |
+| `pairwise_votes` | `INSERT` | Triggers Elo math function (K=32) to update `recipe_elo_ratings` for both recipes atomically. |
 
 **Agent Directive:** Do not write application-layer code to duplicate these actions. Rely on the database triggers.
 

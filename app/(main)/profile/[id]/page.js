@@ -23,11 +23,11 @@ export default function OtherProfilePage({ params }) {
 
     async function fetchAll() {
         setLoading(true);
-        const [profileRes, recipesRes, wantToCookRes, haveCookedRes, followersRes, followingRes, followCheckRes] = await Promise.all([
+        const [profileRes, recipesRes, wantToCookRes, eloRes, followersRes, followingRes, followCheckRes] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', id).single(),
             supabase.from('recipes').select('id, title, url, image_url, source_site, avg_rating, total_cooks, created_at').eq('created_by', id).order('created_at', { ascending: false }),
             supabase.from('user_recipes').select('id, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).eq('status', 'want_to_cook').order('created_at', { ascending: false }),
-            supabase.from('user_recipes').select('id, rating, cooked_at, created_at, recipe_id, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).eq('status', 'cooked').order('cooked_at', { ascending: false }),
+            supabase.from('recipe_elo_ratings').select('recipe_id, elo_score, recipes:recipe_id(id, title, url, image_url, source_site)').eq('user_id', id).order('elo_score', { ascending: false }),
             supabase.from('follows').select('follower_id', { count: 'exact', head: true }).eq('following_id', id),
             supabase.from('follows').select('following_id', { count: 'exact', head: true }).eq('follower_id', id),
             supabase.from('follows').select('follower_id').eq('follower_id', user.id).eq('following_id', id).single(),
@@ -35,7 +35,7 @@ export default function OtherProfilePage({ params }) {
         setProfileData(profileRes.data);
         setRecipes(recipesRes.data || []);
         setWantToCook(wantToCookRes.data || []);
-        setHaveCooked(haveCookedRes.data || []);
+        setHaveCooked((eloRes.data || []).filter((r) => r.recipes));
         setFollowerCount(followersRes.count || 0);
         setFollowingCount(followingRes.count || 0);
         setIsFollowing(!!followCheckRes.data);
@@ -53,19 +53,33 @@ export default function OtherProfilePage({ params }) {
         }
     }
 
+    function getDisplayScore(eloScore, maxElo) {
+        if (!maxElo || maxElo <= 0) return '10.0';
+        return ((eloScore / maxElo) * 10).toFixed(1);
+    }
+
     if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
     if (!profileData) return <div className="text-center py-16"><p className="note-text">User not found</p></div>;
 
-    function RecipeCard({ recipe, rating }) {
+    const maxElo = haveCooked.length > 0 ? haveCooked[0].elo_score : 0;
+
+    function RecipeCard({ recipe, rank, eloScore }) {
         return (
             <Link href={`/recipe/${recipe.id}`}
                 className="flex items-center gap-3 px-4 py-3 rounded-md"
                 style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
+                {rank != null && (
+                    <div className="flex-shrink-0 w-7 text-center">
+                        <span className="text-xs font-bold" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                            {rank}
+                        </span>
+                    </div>
+                )}
                 {recipe.image_url ? (
                     <img src={recipe.image_url} alt="" className="w-12 h-12 rounded-md object-cover" />
                 ) : (
                     <div className="w-12 h-12 rounded-md flex items-center justify-center" style={{ background: 'var(--color-bg-input)' }}>
-                        <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>🍽</span>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '1.2rem' }}>&#127869;</span>
                     </div>
                 )}
                 <div className="flex-1 min-w-0">
@@ -74,9 +88,9 @@ export default function OtherProfilePage({ params }) {
                         <p className="text-xs truncate" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{recipe.source_site}</p>
                     )}
                 </div>
-                {rating && (
-                    <span className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
-                        {rating}/10
+                {eloScore != null && (
+                    <span className="text-sm font-bold" style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}>
+                        {getDisplayScore(eloScore, maxElo)}
                     </span>
                 )}
             </Link>
@@ -116,7 +130,7 @@ export default function OtherProfilePage({ params }) {
                 {isFollowing ? 'Following' : 'Follow'}
             </button>
 
-            {/* Tab bar: Your Recipes / Want to Cook / Have Cooked */}
+            {/* Tab bar */}
             <div className="flex gap-0 mb-4 rounded-md overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
                 <button onClick={() => setActiveTab('recipes')} className="flex-1 py-2.5 text-center transition-colors"
                     style={{ background: activeTab === 'recipes' ? 'var(--color-bg-card)' : 'transparent', borderRight: '1px solid var(--color-border)' }}>
@@ -170,8 +184,8 @@ export default function OtherProfilePage({ params }) {
                         <p className="note-text text-sm text-center py-8">No cooks logged yet</p>
                     ) : (
                         <div className="space-y-2">
-                            {haveCooked.map((item) => (
-                                <RecipeCard key={item.id} recipe={item.recipes} rating={item.rating} />
+                            {haveCooked.map((item, index) => (
+                                <RecipeCard key={item.recipe_id} recipe={item.recipes} rank={index + 1} eloScore={item.elo_score} />
                             ))}
                         </div>
                     )}

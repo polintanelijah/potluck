@@ -35,6 +35,7 @@ export default function FeedPage() {
                     recipes:recipe_id(id, title, url, image_url),
                     likes(user_id),
                     want_to_cook_actions(user_id),
+                    user_recipes!post_id(user_id, status),
                     comments(count)
                 `)
                 .is('deleted_at', null)

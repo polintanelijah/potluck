@@ -235,6 +235,89 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Keep denormalized engagement counts on posts in sync
+CREATE OR REPLACE FUNCTION public.update_post_counts()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_post_id UUID;
+  v_column_name TEXT;
+  v_delta INTEGER;
+BEGIN
+  v_post_id := COALESCE(NEW.post_id, OLD.post_id);
+  v_delta := CASE WHEN TG_OP = 'INSERT' THEN 1 ELSE -1 END;
+
+  IF TG_TABLE_NAME = 'likes' THEN
+    v_column_name := 'like_count';
+  ELSIF TG_TABLE_NAME = 'comments' THEN
+    v_column_name := 'comment_count';
+  ELSIF TG_TABLE_NAME = 'want_to_cook_actions' THEN
+    v_column_name := 'want_to_cook_count';
+  ELSE
+    RETURN COALESCE(NEW, OLD);
+  END IF;
+
+  EXECUTE format(
+    'UPDATE posts SET %I = GREATEST(COALESCE(%I, 0) + $1, 0) WHERE id = $2',
+    v_column_name,
+    v_column_name
+  )
+  USING v_delta, v_post_id;
+
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Keep cooked counters and recipe totals in sync
+CREATE OR REPLACE FUNCTION public.handle_cooked_recipe_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status <> 'cooked' THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.post_id IS NOT NULL THEN
+    UPDATE posts
+    SET cooked_count = COALESCE(cooked_count, 0) + 1
+    WHERE id = NEW.post_id;
+
+    INSERT INTO comments (user_id, post_id, content, type)
+    VALUES (NEW.user_id, NEW.post_id, 'Cooked this.', 'cooked_it');
+  END IF;
+
+  UPDATE recipes
+  SET total_cooks = COALESCE(total_cooks, 0) + 1
+  WHERE id = NEW.recipe_id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION public.handle_cooked_recipe_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.status <> 'cooked' THEN
+    RETURN OLD;
+  END IF;
+
+  IF OLD.post_id IS NOT NULL THEN
+    UPDATE posts
+    SET cooked_count = GREATEST(COALESCE(cooked_count, 0) - 1, 0)
+    WHERE id = OLD.post_id;
+
+    DELETE FROM comments
+    WHERE post_id = OLD.post_id
+      AND user_id = OLD.user_id
+      AND type = 'cooked_it';
+  END IF;
+
+  UPDATE recipes
+  SET total_cooks = GREATEST(COALESCE(total_cooks, 0) - 1, 0)
+  WHERE id = OLD.recipe_id;
+
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS TRIGGER AS $$
@@ -249,6 +332,31 @@ CREATE TRIGGER set_updated_at_recipes BEFORE UPDATE ON recipes FOR EACH ROW EXEC
 CREATE TRIGGER set_updated_at_posts BEFORE UPDATE ON posts FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_updated_at_comments BEFORE UPDATE ON comments FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER set_updated_at_user_recipe_rankings BEFORE UPDATE ON user_recipe_rankings FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS update_post_like_count ON likes;
+CREATE TRIGGER update_post_like_count
+  AFTER INSERT OR DELETE ON likes
+  FOR EACH ROW EXECUTE FUNCTION public.update_post_counts();
+
+DROP TRIGGER IF EXISTS update_post_comment_count ON comments;
+CREATE TRIGGER update_post_comment_count
+  AFTER INSERT OR DELETE ON comments
+  FOR EACH ROW EXECUTE FUNCTION public.update_post_counts();
+
+DROP TRIGGER IF EXISTS update_post_want_to_cook_count ON want_to_cook_actions;
+CREATE TRIGGER update_post_want_to_cook_count
+  AFTER INSERT OR DELETE ON want_to_cook_actions
+  FOR EACH ROW EXECUTE FUNCTION public.update_post_counts();
+
+DROP TRIGGER IF EXISTS update_cooked_side_effects_insert ON user_recipes;
+CREATE TRIGGER update_cooked_side_effects_insert
+  AFTER INSERT ON user_recipes
+  FOR EACH ROW EXECUTE FUNCTION public.handle_cooked_recipe_insert();
+
+DROP TRIGGER IF EXISTS update_cooked_side_effects_delete ON user_recipes;
+CREATE TRIGGER update_cooked_side_effects_delete
+  AFTER DELETE ON user_recipes
+  FOR EACH ROW EXECUTE FUNCTION public.handle_cooked_recipe_delete();
 
 -- =============================================
 -- 5. STORAGE

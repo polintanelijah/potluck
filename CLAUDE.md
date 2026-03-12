@@ -1,126 +1,112 @@
-# Potluck — Agent Context
+# Potluck - Agent Context
 
-Potluck is a social recipe-sharing app built with **Next.js (App Router) + Supabase**. Users share, log, and rank recipes they've cooked. The codebase is **plain JavaScript** (not TypeScript).
+Potluck is a social recipe-sharing app built with **Next.js (App Router) + Supabase**. Users share, log, save, and rank recipes they have cooked. The codebase is **plain JavaScript**.
 
 ---
 
 ## Dev Commands
 
 ```bash
-npm run dev       # Start local dev server (localhost:3000)
-npm run build     # Production build
-npm run lint      # ESLint
+npm run dev
+npm run build
+npm run lint
 ```
 
-Supabase is managed via the Supabase dashboard (cloud). There is no local Supabase CLI setup — do not run `supabase start` or `supabase db push`.
+Supabase is managed in the hosted dashboard. Do not run local Supabase CLI workflows for this project.
 
 ---
 
 ## Project Structure
 
-```
+```text
 app/
-  (auth)/         # Auth routes: login, signup, etc.
-  (main)/         # Main app routes: feed, discover, profile, etc.
+  (auth)/         # Auth routes
+  (main)/         # Main app routes
   layout.js       # Root layout with providers
-  page.js         # Root page (redirect logic)
+  page.js         # Root redirect logic
 components/
-  PostCard.js     # Feed card component (replaces legacy CookSessionCard)
-  LikeButton.js   # Like toggle (uses post_id)
-  CommentSection.js # Comments (uses post_id)
-  RankingFlow.js  # Binary search pairwise voting UI
-  WantToCookButton.js # Bookmark button (uses want_to_cook_actions)
-  BottomNav.js    # Bottom tab bar
+  PostCard.js
+  LikeButton.js
+  CommentSection.js
+  RankingFlow.js  # Bucketed binary search ranking UI
+  WantToCookButton.js
+  BottomNav.js
 contexts/
-  AuthContext.js  # Global auth state via React Context
+  AuthContext.js
 lib/
-  supabase.js         # Browser client (createBrowserClient)
-  supabase-server.js  # Server client (createServerClient, for Server Components + Actions)
-middleware.js     # Auth session refresh — runs on every request
+  supabase.js
+  supabase-server.js
+  rankings.js     # Ranking bucket helpers and score helpers
+middleware.js
 ```
 
 ### SQL Files
 
-- `supabase-schema-unified.sql` — **THE** schema file. Run this on a clean Supabase project. Contains all tables, indexes, RLS, triggers, and functions.
-- `supabase-schema.sql` — LEGACY, do not use. References old `cook_sessions` table.
-- `supabase-migration-missing-tables.sql` — LEGACY, superseded by unified schema.
-- `supabase-elo-ranking.sql` — LEGACY, superseded by unified schema.
+- `supabase-schema-unified.sql` - the canonical schema file.
+- `supabase-schema.sql` - legacy, do not use.
+- `supabase-migration-missing-tables.sql` - legacy, do not use.
+- `supabase-elo-ranking.sql` - legacy, superseded by bucketed rankings.
 
-### Legacy Components (unused, safe to delete)
+### Legacy Components
 
-- `components/CookSessionCard.js` — replaced by `PostCard.js`
-- `components/StarRating.js` — star ratings removed, replaced by Elo pairwise ranking
+- `components/CookSessionCard.js` - replaced by `PostCard.js`
+- `components/StarRating.js` - star ratings were removed
 
 ---
 
 ## Supabase Client Rules
 
-**This is the most important section. Get this wrong and auth will silently break.**
-
-- **Server Components, Route Handlers, Server Actions** → always import from `lib/supabase-server.js`
-- **Client Components** → always import from `lib/supabase.js`
-- **Never** call Supabase directly from a Client Component for anything that requires auth context — use Server Actions instead
-- `middleware.js` handles session refresh automatically — do not replicate this logic elsewhere
-- Environment variables: `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are public. Never expose `SUPABASE_SERVICE_ROLE_KEY` to the client
+- Server Components, Route Handlers, and Server Actions -> use `lib/supabase-server.js`
+- Client Components -> use `lib/supabase.js`
+- `middleware.js` handles auth refresh
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are public
+- Never expose service role credentials to the client
 
 ---
 
 ## Context Files
 
-Read these before making any significant changes:
+Read these before significant changes:
 
-| File | What it covers |
-|---|---|
-| `FEATURES.md` | Full feature scope, domain reasoning, and UI structure |
-| `DATABASE_SCHEMA.md` | All tables, columns, relationships, triggers, and RLS policies |
-| `INVARIANTS.md` | Hard rules that must never be violated |
+- `FEATURES.md`
+- `DATABASE_SCHEMA.md`
+- `INVARIANTS.md`
 
 ---
 
 ## Key Architectural Rules
 
-These are the most common ways agents go wrong on this codebase:
-
-1. **Feed queries must filter by follows** — never return posts from users the viewer doesn't follow. Always join through the `follows` table.
-
-2. **All feed queries must filter `deleted_at IS NULL`** — posts use soft deletes. Use `.is('deleted_at', null)` on every posts query.
-
-3. **Never duplicate trigger logic in application code** — likes, comments, want-to-cook, and has-cooked counts are maintained by database triggers. Do not write app-layer code to update these counts.
-
-4. **Elo updates must be transactional** — both recipes in a pairwise vote must update atomically via the DB trigger. No partial writes.
-
-5. **Rating is pairwise Elo, not star ratings** — there are no star ratings. When a user logs a cook, they rank the recipe via binary search pairwise comparisons. Display scores are 0–10 (normalized: highest Elo = 10). Do not add star rating UI.
-
-6. **URL metadata extraction is server-side only** — clients submit a URL and nothing else.
-
-7. **Recipes are globally readable; posts are follower-gated** — RLS on `recipes` allows public SELECT.
-
-8. **Do not add TypeScript** — the project is plain JS. Do not introduce `.ts`/`.tsx` files or type annotations.
-
-9. **Table naming** — the social feed table is `posts` (not `cook_sessions`). The FK on likes/comments is `post_id` (not `cook_session_id`). Post text field is `caption` (not `notes`).
+1. Feed queries must filter by follows.
+2. All feed queries must filter `deleted_at IS NULL`.
+3. Do not duplicate database trigger behavior in application code for counts and cooked side effects.
+4. Current rankings come from `user_recipe_rankings`.
+5. `pairwise_votes` are analytics/history only.
+6. Rating is bucketed pairwise ranking, not star ratings.
+7. `user_recipes` is cooked-only.
+8. Want-to-cook intent stays in `want_to_cook_actions` and is post-specific.
+9. URL metadata extraction is server-side only.
+10. The project is plain JS. Do not add TypeScript.
+11. The social feed table is `posts`, not `cook_sessions`.
 
 ---
 
-## RLS Pattern
+## Current Ranking Model
 
-All user-owned tables follow this pattern — do not deviate from it:
-
-```sql
-ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "viewable by everyone" ON <table> FOR SELECT USING (true);
-CREATE POLICY "users can insert own" ON <table> FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "users can update own" ON <table> FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "users can delete own" ON <table> FOR DELETE USING (auth.uid() = user_id);
-```
+- Users first choose a bucket: `loved`, `fine`, or `didnt_like`
+- Then they binary-search within that bucket via pairwise comparisons
+- Comparison events may be stored in `pairwise_votes`
+- Final authoritative order is stored in `user_recipe_rankings`
+- Display scores are derived from bucket and rank position:
+  - `loved` -> 7 to 10
+  - `fine` -> 4 to 7
+  - `didnt_like` -> 0 to 4
 
 ---
 
-## What's Not Built Yet (MVP Scope)
+## Not Built Yet
 
-Do not build these unless explicitly asked:
-
-- Private/public profile toggle (`is_private` is anticipated but not implemented)
-- Global recipe leaderboard (Elo is per-user, not global)
-- Invite system (registration is open)
-- Notifications (triggers store data for this, but no UI)
-- "Has Cooked" button on feed posts (ranking flow needs to be triggered from posts too)
+- Private/public profile toggle
+- Global recipe leaderboard
+- Invite system
+- Notifications UI
+- Feed-level "Has Cooked" action

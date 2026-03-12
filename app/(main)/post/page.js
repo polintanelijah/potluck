@@ -132,6 +132,22 @@ export default function PostPage() {
 
             if (postError) throw postError;
 
+            if (imageUrl) {
+                const recipeHasImage = isNewRecipe ? false : !!selectedRecipe?.image_url;
+
+                if (!recipeHasImage) {
+                    const { error: recipeImageError } = await supabase
+                        .from('recipes')
+                        .update({ image_url: imageUrl })
+                        .eq('id', recipeId)
+                        .is('image_url', null);
+
+                    if (recipeImageError) {
+                        console.error('Recipe image update error:', recipeImageError);
+                    }
+                }
+            }
+
             const { error: cookedError } = await supabase
                 .from('user_recipes')
                 .upsert({

@@ -1,29 +1,41 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
-import { getSupabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { getSupabase } from '@/lib/supabase';
+import { formatRecipeTextList } from '@/lib/rankings';
 
 export default function RecipeDetailPage({ params }) {
     const { id } = use(params);
     const [recipe, setRecipe] = useState(null);
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
-    const { user } = useAuth();
     const supabase = getSupabase();
 
-    useEffect(() => { if (id) fetchRecipe(); }, [id]);
+    useEffect(() => {
+        let cancelled = false;
 
-    async function fetchRecipe() {
-        const [recipeRes, sessionsRes] = await Promise.all([
-            supabase.from('recipes').select('*, profiles:created_by(name)').eq('id', id).single(),
-            supabase.from('posts').select('*, profiles:user_id(id, name, avatar_url)').eq('recipe_id', id).is('deleted_at', null).order('created_at', { ascending: false }),
-        ]);
-        setRecipe(recipeRes.data);
-        setSessions(sessionsRes.data || []);
-        setLoading(false);
-    }
+        async function fetchRecipe() {
+            const [recipeRes, sessionsRes] = await Promise.all([
+                supabase.from('recipes').select('*, profiles:created_by(name)').eq('id', id).single(),
+                supabase.from('posts').select('*, profiles:user_id(id, name, avatar_url)').eq('recipe_id', id).is('deleted_at', null).order('created_at', { ascending: false }),
+            ]);
+
+            if (cancelled) return;
+
+            setRecipe(recipeRes.data);
+            setSessions(sessionsRes.data || []);
+            setLoading(false);
+        }
+
+        if (id) {
+            fetchRecipe();
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id, supabase]);
 
     function timeAgo(date) {
         const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -36,6 +48,9 @@ export default function RecipeDetailPage({ params }) {
         if (days < 7) return `${days}d ago`;
         return `${Math.floor(days / 7)}w ago`;
     }
+
+    const ingredients = formatRecipeTextList(recipe?.ingredients);
+    const instructions = formatRecipeTextList(recipe?.instructions);
 
     if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
     if (!recipe) return <div className="text-center py-16"><p className="note-text">Recipe not found</p></div>;
@@ -54,7 +69,6 @@ export default function RecipeDetailPage({ params }) {
             <h1 className="text-2xl mb-1" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{recipe.title}</h1>
             <p className="meta-label mb-4" style={{ textTransform: 'none' }}>added by {recipe.profiles?.name || 'unknown'}</p>
 
-            {/* Stats */}
             <div className="flex items-center gap-4 mb-4 px-4 py-3 rounded-md" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                 <div className="text-center flex-1">
                     <p className="font-bold text-lg" style={{ fontFamily: "'DM Mono', monospace" }}>{sessions.length}</p>
@@ -70,22 +84,30 @@ export default function RecipeDetailPage({ params }) {
                 </a>
             )}
 
-            {recipe.ingredients && (
+            {ingredients.length > 0 && (
                 <div className="mb-4">
                     <h2 className="text-sm mb-2" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>Ingredients</h2>
-                    <div className="px-4 py-3 rounded-md text-sm whitespace-pre-wrap leading-relaxed"
+                    <div className="px-4 py-3 rounded-md text-sm leading-relaxed"
                         style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border-light)' }}>
-                        {recipe.ingredients}
+                        <ul className="space-y-2">
+                            {ingredients.map((item) => (
+                                <li key={item}>{item}</li>
+                            ))}
+                        </ul>
                     </div>
                 </div>
             )}
 
-            {recipe.instructions && (
+            {instructions.length > 0 && (
                 <div className="mb-6">
                     <h2 className="text-sm mb-2" style={{ fontFamily: "'Playfair Display', serif", fontWeight: 700 }}>Instructions</h2>
-                    <div className="px-4 py-3 rounded-md text-sm whitespace-pre-wrap leading-relaxed"
+                    <div className="px-4 py-3 rounded-md text-sm leading-relaxed"
                         style={{ background: 'var(--color-bg-card)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border-light)' }}>
-                        {recipe.instructions}
+                        <ol className="space-y-2 list-decimal list-inside">
+                            {instructions.map((item) => (
+                                <li key={item}>{item}</li>
+                            ))}
+                        </ol>
                     </div>
                 </div>
             )}
@@ -98,20 +120,20 @@ export default function RecipeDetailPage({ params }) {
                 <p className="note-text text-sm py-4 text-center">No one has tried this yet — be the first!</p>
             ) : (
                 <div className="space-y-2">
-                    {sessions.map((s) => (
-                        <Link key={s.id} href={`/session/${s.id}`}
+                    {sessions.map((session) => (
+                        <Link key={session.id} href={`/session/${session.id}`}
                             className="flex items-center gap-3 px-4 py-3 rounded-md"
                             style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}>
                             <div className="avatar" style={{ width: '2rem', height: '2rem', fontSize: '0.75rem' }}>
-                                {s.profiles?.avatar_url ? (
-                                    <img src={s.profiles.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                                ) : (s.profiles?.name?.[0]?.toUpperCase() || '?')}
+                                {session.profiles?.avatar_url ? (
+                                    <img src={session.profiles.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                                ) : (session.profiles?.name?.[0]?.toUpperCase() || '?')}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{s.profiles?.name}</p>
-                                {s.caption && <p className="note-text text-xs truncate">{s.caption}</p>}
+                                <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{session.profiles?.name}</p>
+                                {session.caption && <p className="note-text text-xs truncate">{session.caption}</p>}
                             </div>
-                            <span className="meta-label" style={{ textTransform: 'none' }}>{timeAgo(s.created_at)}</span>
+                            <span className="meta-label" style={{ textTransform: 'none' }}>{timeAgo(session.created_at)}</span>
                         </Link>
                     ))}
                 </div>

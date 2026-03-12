@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { use, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import LikeButton from '@/components/LikeButton';
 import WantToCookButton from '@/components/WantToCookButton';
+import HaveCookedButton from '@/components/HaveCookedButton';
 import CommentSection from '@/components/CommentSection';
-import Link from 'next/link';
 
 export default function PostDetailPage({ params }) {
     const { id } = use(params);
@@ -15,16 +16,31 @@ export default function PostDetailPage({ params }) {
     const { user } = useAuth();
     const supabase = getSupabase();
 
-    useEffect(() => { if (id) fetchPost(); }, [id]);
+    useEffect(() => {
+        let cancelled = false;
 
-    async function fetchPost() {
-        const { data } = await supabase
-            .from('posts')
-            .select(`*, profiles:user_id(id, name, avatar_url), recipes:recipe_id(id, title, url, image_url, ingredients, instructions), likes(user_id), want_to_cook_actions(user_id)`)
-            .eq('id', id).single();
-        setPost(data);
-        setLoading(false);
-    }
+        async function fetchPost() {
+            const { data } = await supabase
+                .from('posts')
+                .select('*, profiles:user_id(id, name, avatar_url), recipes:recipe_id(id, title, url, image_url, ingredients, instructions), likes(user_id), want_to_cook_actions(user_id), user_recipes!post_id(user_id, status)')
+                .eq('id', id)
+                .is('deleted_at', null)
+                .maybeSingle();
+
+            if (cancelled) return;
+
+            setPost(data);
+            setLoading(false);
+        }
+
+        if (id) {
+            fetchPost();
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id, supabase]);
 
     function timeAgo(date) {
         const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -43,17 +59,18 @@ export default function PostDetailPage({ params }) {
 
     const profile = post.profiles;
     const recipe = post.recipes;
-    const isLiked = post.likes?.some((l) => l.user_id === user?.id);
+    const isLiked = post.likes?.some((item) => item.user_id === user?.id);
     const likeCount = post.likes?.length || 0;
-    const isWanted = post.want_to_cook_actions?.some((w) => w.user_id === user?.id);
+    const isWanted = post.want_to_cook_actions?.some((item) => item.user_id === user?.id);
     const wantToCookCount = post.want_to_cook_actions?.length || 0;
+    const hasCooked = post.user_recipes?.some((ur) => ur.user_id === user?.id && ur.status === 'cooked');
+    const cookedCount = post.user_recipes?.filter((ur) => ur.status === 'cooked')?.length || 0;
 
     return (
         <div className="px-4 py-6 animate-fade-in">
             <Link href="/feed" className="flex items-center gap-1 text-sm mb-4"
-                style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}>← back to feed</Link>
+                style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}>&larr; back to feed</Link>
 
-            {/* User header */}
             <div className="flex items-center gap-3 mb-4">
                 <Link href={profile?.id === user?.id ? '/profile' : `/profile/${profile?.id}`}>
                     <div className="avatar">
@@ -68,14 +85,12 @@ export default function PostDetailPage({ params }) {
                 </div>
             </div>
 
-            {/* Image */}
             {post.image_url && (
                 <div className="rounded-md overflow-hidden mb-4" style={{ maxHeight: '380px' }}>
                     <img src={post.image_url} alt={recipe?.title} className="w-full object-cover" />
                 </div>
             )}
 
-            {/* Recipe title */}
             <div className="mb-2">
                 <Link href={`/recipe/${recipe?.id}`}>
                     <h1 className="text-xl" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{recipe?.title}</h1>
@@ -89,13 +104,14 @@ export default function PostDetailPage({ params }) {
             {recipe?.url && (
                 <a href={recipe.url} target="_blank" rel="noopener noreferrer"
                     className="block text-sm mb-4" style={{ color: 'var(--color-sage)', fontFamily: "'DM Mono', monospace" }}>
-                    ↗ recipe source
+                    -&gt; recipe source
                 </a>
             )}
 
             <div className="flex items-center gap-4 pb-4 mb-4" style={{ borderBottom: '1px solid var(--color-border)' }}>
                 <LikeButton postId={post.id} initialLiked={isLiked} initialCount={likeCount} />
                 <WantToCookButton postId={post.id} recipeId={recipe?.id} initialWanted={isWanted} initialCount={wantToCookCount} isOwnPost={post.user_id === user?.id} />
+                <HaveCookedButton postId={post.id} recipeId={recipe?.id} recipeTitle={recipe?.title} initialCooked={hasCooked} initialCount={cookedCount} isOwnPost={post.user_id === user?.id} className="ml-auto" />
             </div>
 
             <h2 className="font-bold text-sm mb-3" style={{ fontFamily: "'Playfair Display', serif" }}>Comments</h2>

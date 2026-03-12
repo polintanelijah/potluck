@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 
 const AuthContext = createContext({});
@@ -12,7 +12,7 @@ export function AuthProvider({ children }) {
     const initialized = useRef(false);
     const supabase = getSupabase();
 
-    async function fetchProfile(userId) {
+    const fetchProfile = useCallback(async (userId) => {
         try {
             const { data } = await supabase
                 .from('profiles')
@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
         } catch (err) {
             console.error('Failed to fetch profile:', err);
         }
-    }
+    }, [supabase]);
 
     useEffect(() => {
         if (initialized.current) return;
@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
             subscription.unsubscribe();
             clearTimeout(timeout);
         };
-    }, []);
+    }, [fetchProfile, supabase.auth]);
 
     async function signUp(email, password, name, username) {
         const { data, error } = await supabase.auth.signUp({

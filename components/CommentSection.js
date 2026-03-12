@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -13,8 +13,26 @@ export default function CommentSection({ postId }) {
     const supabase = getSupabase();
 
     useEffect(() => {
-        fetchComments();
-    }, [postId]);
+        let cancelled = false;
+
+        async function loadComments() {
+            const { data } = await supabase
+                .from('comments')
+                .select('*, profiles:user_id(name, avatar_url)')
+                .eq('post_id', postId)
+                .order('created_at', { ascending: true });
+
+            if (!cancelled) {
+                setComments(data || []);
+                setLoading(false);
+            }
+        }
+
+        loadComments();
+        return () => {
+            cancelled = true;
+        };
+    }, [postId, supabase]);
 
     async function fetchComments() {
         const { data } = await supabase
@@ -22,6 +40,7 @@ export default function CommentSection({ postId }) {
             .select('*, profiles:user_id(name, avatar_url)')
             .eq('post_id', postId)
             .order('created_at', { ascending: true });
+
         setComments(data || []);
         setLoading(false);
     }

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import RankingFlow from '@/components/RankingFlow';
+import { getBucketPriority, normalizeRecipeText } from '@/lib/rankings';
 
 export default function PostPage() {
     const [step, setStep] = useState(1);
@@ -12,38 +14,40 @@ export default function PostPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedRecipe, setSelectedRecipe] = useState(null);
     const [isNewRecipe, setIsNewRecipe] = useState(false);
-
     const [title, setTitle] = useState('');
     const [url, setUrl] = useState('');
     const [ingredients, setIngredients] = useState('');
     const [instructions, setInstructions] = useState('');
-
     const [notes, setNotes] = useState('');
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
-
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
-
-    // Step 3: ranking
     const [rankedRecipeId, setRankedRecipeId] = useState(null);
     const [rankedRecipeTitle, setRankedRecipeTitle] = useState('');
-
     const { user } = useAuth();
     const supabase = getSupabase();
     const router = useRouter();
 
     useEffect(() => {
-        fetchRecipes();
-    }, []);
+        let cancelled = false;
 
-    async function fetchRecipes() {
-        const { data } = await supabase
-            .from('recipes')
-            .select('id, title, url')
-            .order('created_at', { ascending: false });
-        setExistingRecipes(data || []);
-    }
+        async function fetchRecipes() {
+            const { data } = await supabase
+                .from('recipes')
+                .select('id, title, url, image_url, source_site, created_by, user_recipe_rankings!left(user_id, bucket, rank_position)')
+                .order('created_at', { ascending: false });
+
+            if (!cancelled) {
+                setExistingRecipes(data || []);
+            }
+        }
+
+        fetchRecipes();
+        return () => {
+            cancelled = true;
+        };
+    }, [supabase]);
 
     function handleImageChange(e) {
         const file = e.target.files?.[0];
@@ -55,18 +59,28 @@ export default function PostPage() {
 
     async function uploadImage() {
         if (!imageFile || !user) return null;
+
         try {
             const ext = imageFile.name.split('.').pop();
             const filePath = `${user.id}/${Date.now()}.${ext}`;
             const { error: uploadError } = await supabase.storage.from('images').upload(filePath, imageFile);
-            if (uploadError) { console.error('Image upload error:', uploadError); return null; }
+            if (uploadError) {
+                console.error('Image upload error:', uploadError);
+                return null;
+            }
+
             const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
             return publicUrl;
-        } catch (err) { console.error('Image upload exception:', err); return null; }
+        } catch (err) {
+            console.error('Image upload exception:', err);
+            return null;
+        }
     }
 
     async function handleSubmit(e) {
         e.preventDefault();
+        if (!user) return;
+
         setError('');
         setSubmitting(true);
 
@@ -75,27 +89,79 @@ export default function PostPage() {
             let recipeName = selectedRecipe?.title;
 
             if (isNewRecipe) {
-                if (!title.trim()) { setError('Every recipe needs a name'); setSubmitting(false); return; }
+                if (!title.trim()) {
+                    setError('Every recipe needs a name');
+                    setSubmitting(false);
+                    return;
+                }
+
                 const { data: newRecipe, error: recipeError } = await supabase
                     .from('recipes')
-                    .insert({ title: title.trim(), url: url.trim() || null, ingredients: ingredients.trim() || null, instructions: instructions.trim() || null, created_by: user.id })
-                    .select().single();
+                    .insert({
+                        title: title.trim(),
+                        url: url.trim() || null,
+                        ingredients: normalizeRecipeText(ingredients),
+                        instructions: normalizeRecipeText(instructions),
+                        created_by: user.id,
+                    })
+                    .select()
+                    .single();
+
                 if (recipeError) throw recipeError;
                 recipeId = newRecipe.id;
-                recipeName = title.trim();
+                recipeName = newRecipe.title;
             }
 
-            let imageUrl = null;
-            if (imageFile) { imageUrl = await uploadImage(); }
+            if (!recipeId) {
+                throw new Error('Pick a recipe before logging your cook');
+            }
 
-            const { error: postError } = await supabase
+            const imageUrl = imageFile ? await uploadImage() : null;
+
+            const { data: createdPost, error: postError } = await supabase
                 .from('posts')
-                .insert({ user_id: user.id, recipe_id: recipeId, type: 'cook_log', caption: notes.trim() || null, image_url: imageUrl });
+                .insert({
+                    user_id: user.id,
+                    recipe_id: recipeId,
+                    type: 'cook_log',
+                    caption: notes.trim() || null,
+                    image_url: imageUrl,
+                })
+                .select('id')
+                .single();
+
             if (postError) throw postError;
 
-            // Proceed to ranking step
+            if (imageUrl) {
+                const recipeHasImage = isNewRecipe ? false : !!selectedRecipe?.image_url;
+
+                if (!recipeHasImage) {
+                    const { error: recipeImageError } = await supabase
+                        .from('recipes')
+                        .update({ image_url: imageUrl })
+                        .eq('id', recipeId)
+                        .is('image_url', null);
+
+                    if (recipeImageError) {
+                        console.error('Recipe image update error:', recipeImageError);
+                    }
+                }
+            }
+
+            const { error: cookedError } = await supabase
+                .from('user_recipes')
+                .upsert({
+                    user_id: user.id,
+                    recipe_id: recipeId,
+                    status: 'cooked',
+                    post_id: createdPost.id,
+                    cooked_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,recipe_id,status' });
+
+            if (cookedError) throw cookedError;
+
             setRankedRecipeId(recipeId);
-            setRankedRecipeTitle(recipeName);
+            setRankedRecipeTitle(recipeName || selectedRecipe?.title || title.trim());
             setStep(3);
         } catch (err) {
             console.error('Post error:', err);
@@ -105,9 +171,22 @@ export default function PostPage() {
         }
     }
 
-    const filteredRecipes = existingRecipes.filter((r) =>
-        r.title.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredRecipes = existingRecipes
+        .filter((recipe) => recipe.title.toLowerCase().includes(searchQuery.toLowerCase()))
+        .sort((a, b) => {
+            const aRanking = a.user_recipe_rankings?.find((ranking) => ranking.user_id === user?.id);
+            const bRanking = b.user_recipe_rankings?.find((ranking) => ranking.user_id === user?.id);
+
+            if (aRanking && bRanking) {
+                const bucketDiff = getBucketPriority(aRanking.bucket) - getBucketPriority(bRanking.bucket);
+                if (bucketDiff !== 0) return bucketDiff;
+                return aRanking.rank_position - bRanking.rank_position;
+            }
+
+            if (aRanking) return -1;
+            if (bRanking) return 1;
+            return a.title.localeCompare(b.title);
+        });
 
     return (
         <div className="px-4 py-6">
@@ -115,7 +194,7 @@ export default function PostPage() {
                 {step === 3 ? 'Rank It' : 'Log a Cook'}
             </h1>
             <p className="note-text text-sm mb-6">
-                {step === 3 ? 'where does it land on your list?' : 'what did you make this time?'}
+                {step === 3 ? 'where does it land on your list?' : 'reuse an existing recipe or create a new one'}
             </p>
 
             {error && (
@@ -127,45 +206,84 @@ export default function PostPage() {
 
             {step === 1 && (
                 <div className="space-y-4 animate-fade-in">
-                    {/* Search existing recipes */}
                     <div>
-                        <label className="label">Find a recipe</label>
+                        <label className="label">Search existing recipes</label>
                         <input
                             type="text"
                             className="input-field"
-                            placeholder="Search recipes you've added..."
+                            placeholder="Search recipes by name..."
                             value={searchQuery}
-                            onChange={(e) => { setSearchQuery(e.target.value); setIsNewRecipe(false); setSelectedRecipe(null); }}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setIsNewRecipe(false);
+                                setSelectedRecipe(null);
+                            }}
                         />
+                        <p className="note-text text-xs mt-2">
+                            Results favor recipes you&apos;ve already ranked highly.
+                        </p>
                     </div>
 
-                    {/* Existing recipes */}
                     {searchQuery && filteredRecipes.length > 0 && !isNewRecipe && (
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                            {filteredRecipes.map((r) => (
-                                <button
-                                    key={r.id}
-                                    onClick={() => { setSelectedRecipe(r); setStep(2); }}
-                                    className="w-full text-left px-4 py-3 rounded-md transition-colors"
-                                    style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
-                                >
-                                    <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{r.title}</p>
-                                    {r.url && <p className="text-xs truncate mt-0.5" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>{r.url}</p>}
-                                </button>
-                            ))}
+                        <div className="space-y-2 max-h-72 overflow-y-auto">
+                            {filteredRecipes.map((recipe) => {
+                                const ranking = recipe.user_recipe_rankings?.find((item) => item.user_id === user?.id);
+
+                                return (
+                                    <div
+                                        key={recipe.id}
+                                        className="px-4 py-3 rounded-md"
+                                        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>{recipe.title}</p>
+                                                {recipe.source_site && (
+                                                    <p className="text-xs truncate mt-0.5" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                                                        {recipe.source_site}
+                                                    </p>
+                                                )}
+                                                {ranking && (
+                                                    <p className="note-text text-xs mt-1">
+                                                        Already ranked in {ranking.bucket.replace('_', ' ')} at #{ranking.rank_position}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <Link
+                                                href={`/recipe/${recipe.id}`}
+                                                className="text-xs"
+                                                style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}
+                                            >
+                                                View
+                                            </Link>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                setSelectedRecipe(recipe);
+                                                setStep(2);
+                                            }}
+                                            className="btn-secondary mt-3"
+                                            style={{ padding: '0.45rem 0.8rem', fontSize: '0.75rem' }}
+                                        >
+                                            Use this recipe
+                                        </button>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
 
-                    {/* Divider */}
                     <div className="flex items-center gap-3 py-1">
                         <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
                         <span className="meta-label" style={{ textTransform: 'none' }}>or</span>
                         <div className="flex-1 h-px" style={{ background: 'var(--color-border)' }} />
                     </div>
 
-                    {/* New recipe */}
                     <button
-                        onClick={() => { setIsNewRecipe(true); setSelectedRecipe(null); }}
+                        onClick={() => {
+                            setIsNewRecipe(true);
+                            setSelectedRecipe(null);
+                        }}
                         className="w-full text-left px-4 py-3 rounded-md transition-colors"
                         style={{
                             background: isNewRecipe ? 'var(--color-ochre-glow)' : 'var(--color-bg-card)',
@@ -173,7 +291,7 @@ export default function PostPage() {
                         }}
                     >
                         <p className="font-semibold text-sm" style={{ fontFamily: "'Playfair Display', serif" }}>
-                            + Add a new recipe
+                            + Create a brand new recipe
                         </p>
                     </button>
 
@@ -188,12 +306,12 @@ export default function PostPage() {
                                 <input type="url" className="input-field" placeholder="Paste the URL if you found it online" value={url} onChange={(e) => setUrl(e.target.value)} />
                             </div>
                             <div>
-                                <label className="label">Ingredients (optional)</label>
-                                <textarea className="input-field" placeholder="List what went into it..." value={ingredients} onChange={(e) => setIngredients(e.target.value)} rows={3} />
+                                <label className="label">Ingredients</label>
+                                <textarea className="input-field" placeholder="One ingredient per line" value={ingredients} onChange={(e) => setIngredients(e.target.value)} rows={4} />
                             </div>
                             <div>
-                                <label className="label">Instructions (optional)</label>
-                                <textarea className="input-field" placeholder="How did you make it?" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={4} />
+                                <label className="label">Instructions</label>
+                                <textarea className="input-field" placeholder="One step per line" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={5} />
                             </div>
                             <button onClick={() => setStep(2)} className="btn-primary w-full" disabled={!title.trim()}>
                                 Next
@@ -214,13 +332,24 @@ export default function PostPage() {
                         ← back
                     </button>
 
-                    {/* Recipe name card */}
                     <div className="px-4 py-3 rounded-md" style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}>
                         <p className="meta-label" style={{ textTransform: 'none', marginBottom: '0.25rem' }}>cooking</p>
-                        <p className="font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>{isNewRecipe ? title : selectedRecipe?.title}</p>
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="font-bold" style={{ fontFamily: "'Playfair Display', serif" }}>
+                                {isNewRecipe ? title : selectedRecipe?.title}
+                            </p>
+                            {!isNewRecipe && selectedRecipe?.id && (
+                                <Link
+                                    href={`/recipe/${selectedRecipe.id}`}
+                                    className="text-xs"
+                                    style={{ color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace" }}
+                                >
+                                    View details
+                                </Link>
+                            )}
+                        </div>
                     </div>
 
-                    {/* Notes */}
                     <div>
                         <label className="label">Notes</label>
                         <textarea
@@ -232,7 +361,6 @@ export default function PostPage() {
                         />
                     </div>
 
-                    {/* Photo */}
                     <div>
                         <label className="label">Photo</label>
                         {imagePreview ? (
@@ -240,11 +368,14 @@ export default function PostPage() {
                                 <img src={imagePreview} alt="Preview" className="w-full object-cover" />
                                 <button
                                     type="button"
-                                    onClick={() => { setImageFile(null); setImagePreview(null); }}
+                                    onClick={() => {
+                                        setImageFile(null);
+                                        setImagePreview(null);
+                                    }}
                                     className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-xs"
                                     style={{ background: 'rgba(44,36,22,0.6)', color: '#FFF9F4', border: 'none', cursor: 'pointer' }}
                                 >
-                                    ✕
+                                    ×
                                 </button>
                             </div>
                         ) : (

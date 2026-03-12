@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import LikeButton from './LikeButton';
 import WantToCookButton from './WantToCookButton';
+import HaveCookedButton from './HaveCookedButton';
 
 export default function PostCard({ post, currentUserId }) {
     const profile = post.profiles;
@@ -24,6 +25,8 @@ export default function PostCard({ post, currentUserId }) {
     const likeCount = post.likes?.length || 0;
     const isWanted = post.want_to_cook_actions?.some((w) => w.user_id === currentUserId);
     const wantToCookCount = post.want_to_cook_actions?.length || 0;
+    const hasCooked = post.user_recipes?.some((ur) => ur.user_id === currentUserId && ur.status === 'cooked');
+    const cookedCount = post.user_recipes?.filter((ur) => ur.status === 'cooked')?.length || 0;
     const commentCount = post.comments?.[0]?.count || 0;
 
     return (
@@ -120,6 +123,15 @@ export default function PostCard({ post, currentUserId }) {
                             <span className="text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{commentCount}</span>
                         )}
                     </Link>
+                    <HaveCookedButton
+                        postId={post.id}
+                        recipeId={recipe?.id}
+                        recipeTitle={recipe?.title}
+                        initialCooked={hasCooked}
+                        initialCount={cookedCount}
+                        isOwnPost={post.user_id === currentUserId}
+                        className="ml-auto"
+                    />
                 </div>
             </div>
         </div>

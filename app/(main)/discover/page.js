@@ -11,6 +11,7 @@ export default function DiscoverPage() {
     const [followingIds, setFollowingIds] = useState(new Set());
     const [loading, setLoading] = useState(false);
     const [suggested, setSuggested] = useState([]);
+    const [copied, setCopied] = useState(false);
     const { user } = useAuth();
     const supabase = getSupabase();
 
@@ -74,6 +75,26 @@ export default function DiscoverPage() {
         }
     }
 
+    async function handleInvite() {
+        const shareData = {
+            title: 'Potluck',
+            text: 'Come share what you\'re actually cooking!',
+            url: window.location.origin,
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+            } catch {
+                // User cancelled the share sheet
+            }
+        } else {
+            await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    }
+
     const displayUsers = query.trim() ? users : suggested;
 
     return (
@@ -82,6 +103,23 @@ export default function DiscoverPage() {
                 Discover
             </h1>
             <p className="note-text text-sm mb-6">find friends to cook with</p>
+
+            <div
+                className="flex items-center justify-between px-4 py-3 rounded-md mb-4"
+                style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)' }}
+            >
+                <p className="note-text text-sm">Lonely? Tell your friends to join the Potluck! </p>
+                <button onClick={handleInvite} className="btn-primary" style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                        <polyline points="16 6 12 2 8 6" />
+                        <line x1="12" y1="2" x2="12" y2="15" />
+                    </svg>
+                    {copied ? 'Link Copied!' : 'Invite Friends'}
+                </button>
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--color-border)', marginBottom: '1rem' }} />
 
             <input
                 type="text"

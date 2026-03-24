@@ -2,7 +2,34 @@
   "permissions": {
     "allow": [
       "Bash(find /c/potluck-app-2/app -type f \\\\\\( -name \"*.js\" -o -name \"*.jsx\" -o -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) 2>/dev/null | grep -v node_modules)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(cat \"/c/Users/16146/downloads/OSU CSE/cse5251/elijah_potluck/potluck/app/\\(main\\)/post/page.js\")",
+      "Bash(cat \"/c/Users/16146/downloads/OSU CSE/cse5251/elijah_potluck/potluck/app/\\(main\\)/profile/page.js\")",
+      "Bash(cat \"/c/Users/16146/downloads/OSU CSE/cse5251/elijah_potluck/potluck/app/\\(main\\)/profile/[id]/page.js\")",
+      "Bash(cat:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vitest:*)",
+      "Bash(npm test:*)",
+      "Skill(update-config)",
+      "Bash(node:*)",
+      "WebFetch(domain:beliapp.com)",
+      "WebSearch",
+      "WebFetch(domain:ixd.prattsi.org)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "INPUT=$(cat); FILE=$(echo \"$INPUT\" | node -e \"let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const o=JSON.parse(d);console.log(o.tool_input?.file_path||o.tool_response?.filePath||'')})\"); if [ -z \"$FILE\" ]; then exit 0; fi; case \"$FILE\" in */lib/*|*/components/*) cd \"C:/Users/16146/downloads/OSU CSE/cse5251/elijah_potluck/potluck\" && npm test 2>&1; echo; echo \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PostToolUse\\\",\\\"additionalContext\\\":\\\"Tests ran after editing $FILE. If you changed behavior in this file, add or update the corresponding .test.js file next to it. Test files live alongside source (e.g. lib/rankings.test.js for lib/rankings.js).\\\"}}\" ;; *) exit 0 ;; esac",
+            "timeout": 30,
+            "statusMessage": "Running tests..."
+          }
+        ]
+      }
     ]
   }
 }

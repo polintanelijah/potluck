@@ -1,66 +1,42 @@
-# Potluck - Agent Context
+# CLAUDE.md
 
-Potluck is a social recipe-sharing app built with **Next.js (App Router) + Supabase**. Users share, log, save, and rank recipes they have cooked. The codebase is **plain JavaScript**.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Key Rules
+
+1. The project is **plain JavaScript**. Do not add TypeScript.
+2. Feed queries must filter by `follows` AND `deleted_at IS NULL`.
+3. Do not duplicate database trigger behavior in app code (counters, cooked side effects, auto-comments).
+4. Current rankings come from `user_recipe_rankings`. `pairwise_votes` are analytics/history only.
+5. Rating is bucketed pairwise ranking, not star ratings.
+6. `user_recipes` is cooked-only. Want-to-cook intent stays in `want_to_cook_actions` (post-specific).
+7. URL metadata extraction is server-side only.
+8. The social feed table is `posts`, not `cook_sessions`.
+9. All components are client-side (`"use client"`).
+10. **Supabase client split:** Server Components/Route Handlers/Server Actions use `lib/supabase-server.js`. Client Components use `lib/supabase.js`. Never expose service role credentials to the client.
 
 ---
 
-## Dev Commands
+## Build & Validation Commands
 
 ```bash
-npm run dev
-npm run build
-npm run lint
+npm run test         # Vitest — unit tests for pure logic (rankings, helpers)
+npm run lint         # ESLint with next/core-web-vitals — catches React/Next.js anti-patterns
+npm run build        # Next.js production build — catches compile errors, bad imports, SSR issues
+npm run dev          # Start dev server at localhost:3000
 ```
 
-Supabase is managed in the hosted dashboard. Do not run local Supabase CLI workflows for this project.
+Run a single test file: `npx vitest run lib/rankings.test.js`
 
----
+**After making changes, always run `npm test`, `npm run lint`, and `npm run build` to validate.** Test files live next to their source (e.g., `lib/rankings.test.js`).
 
-## Project Structure
+### Environment Variables
 
-```text
-app/
-  (auth)/         # Auth routes
-  (main)/         # Main app routes
-  layout.js       # Root layout with providers
-  page.js         # Root redirect logic
-components/
-  PostCard.js
-  LikeButton.js
-  CommentSection.js
-  RankingFlow.js  # Bucketed binary search ranking UI
-  WantToCookButton.js
-  BottomNav.js
-contexts/
-  AuthContext.js
-lib/
-  supabase.js
-  supabase-server.js
-  rankings.js     # Ranking bucket helpers and score helpers
-middleware.js
-```
+The app requires these in `.env.local` (not committed):
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous/public key
 
-### SQL Files
-
-- `supabase-schema-unified.sql` - the canonical schema file.
-- `supabase-schema.sql` - legacy, do not use.
-- `supabase-migration-missing-tables.sql` - legacy, do not use.
-- `supabase-elo-ranking.sql` - legacy, superseded by bucketed rankings.
-
-### Legacy Components
-
-- `components/CookSessionCard.js` - replaced by `PostCard.js`
-- `components/StarRating.js` - star ratings were removed
-
----
-
-## Supabase Client Rules
-
-- Server Components, Route Handlers, and Server Actions -> use `lib/supabase-server.js`
-- Client Components -> use `lib/supabase.js`
-- `middleware.js` handles auth refresh
-- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are public
-- Never expose service role credentials to the client
+Supabase is managed in the hosted dashboard — do not run local Supabase CLI workflows.
 
 ---
 
@@ -68,38 +44,84 @@ middleware.js
 
 Read these before significant changes:
 
-- `FEATURES.md`
-- `DATABASE_SCHEMA.md`
-- `INVARIANTS.md`
+- `FEATURES.md` — feature scope and system reasoning
+- `DATABASE_SCHEMA.md` — schema design, RLS policies, trigger summary (**Note:** still references the old `recipe_elo_ratings` / Elo system; the codebase now uses `user_recipe_rankings` with bucketed ranking)
+- `INVARIANTS.md` — what must stay true
 
 ---
 
-## Key Architectural Rules
+## Tech Stack
 
-1. Feed queries must filter by follows.
-2. All feed queries must filter `deleted_at IS NULL`.
-3. Do not duplicate database trigger behavior in application code for counts and cooked side effects.
-4. Current rankings come from `user_recipe_rankings`.
-5. `pairwise_votes` are analytics/history only.
-6. Rating is bucketed pairwise ranking, not star ratings.
-7. `user_recipes` is cooked-only.
-8. Want-to-cook intent stays in `want_to_cook_actions` and is post-specific.
-9. URL metadata extraction is server-side only.
-10. The project is plain JS. Do not add TypeScript.
-11. The social feed table is `posts`, not `cook_sessions`.
+- **Next.js 16 (App Router)** with plain JavaScript
+- **Supabase** (auth, database, RLS)
+- **Tailwind CSS v4** for styling
+- **React 19**
+- Path alias: `@` maps to the project root (via `jsconfig.json`)
 
 ---
 
-## Current Ranking Model
+## Project Structure
 
-- Users first choose a bucket: `loved`, `fine`, or `didnt_like`
-- Then they binary-search within that bucket via pairwise comparisons
-- Comparison events may be stored in `pairwise_votes`
-- Final authoritative order is stored in `user_recipe_rankings`
-- Display scores are derived from bucket and rank position:
-  - `loved` -> 7 to 10
-  - `fine` -> 4 to 7
-  - `didnt_like` -> 0 to 4
+```text
+app/
+  (auth)/login, signup     # Unauthenticated routes
+  (main)/                  # Authenticated routes (layout adds BottomNav)
+    feed/                  # Social feed (follow-filtered)
+    discover/              # Non-followed content
+    post/                  # Log a cook / add recipe
+    profile/               # Current user profile
+    profile/[id]/          # Other user's profile
+    recipe/[id]/           # Recipe detail
+    session/[id]/          # Post detail
+  layout.js                # Root layout (AuthProvider)
+  page.js                  # Root redirect (authed -> /feed, else -> /login)
+components/
+  PostCard.js              # Feed post rendering
+  LikeButton.js
+  CommentSection.js
+  RankingFlow.js           # Bucketed binary search ranking UI
+  WantToCookButton.js
+  HaveCookedButton.js      # Triggers ranking flow
+  BottomNav.js
+contexts/
+  AuthContext.js            # Auth state (user, loading, signOut, refreshProfile)
+lib/
+  supabase.js              # Client-side Supabase instance
+  supabase-server.js       # Server-side Supabase instance
+  rankings.js              # Bucket config, sorting, score computation, recipe text parsing
+middleware.js               # Auth refresh (3s timeout), route guards
+```
+
+**No API route handlers exist.** All data operations use direct Supabase client calls.
+
+### SQL Files
+
+- `supabase-schema-unified.sql` — the canonical schema file
+- `supabase-schema.sql`, `supabase-migration-missing-tables.sql`, `supabase-elo-ranking.sql` — legacy, do not use
+
+### Legacy Components (do not use)
+
+- `components/CookSessionCard.js` — replaced by `PostCard.js`
+- `components/StarRating.js` — star ratings were removed
+
+---
+
+## Ranking Model
+
+Users rank recipes via bucketed binary search insertion:
+
+1. **Bucket selection** — `loved`, `fine`, or `didnt_like`
+2. **Binary search** — pairwise comparisons against recipes already in that bucket (~log2(n) comparisons)
+3. **Persist** — recipe inserted at computed position, all rankings in bucket rebalanced
+
+Authoritative state: `user_recipe_rankings` (bucket + rank_position).
+
+Display scores derived from bucket and position:
+- `loved` -> 7 to 10
+- `fine` -> 4 to 7
+- `didnt_like` -> 0 to 4
+
+Ranking helpers live in `lib/rankings.js` (`RANKING_BUCKETS`, `getBucketScore`, `sortRankings`, etc).
 
 ---
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import PostCard from '@/components/PostCard';
@@ -25,7 +26,6 @@ export default function FeedPage() {
                 .eq('follower_id', user.id);
 
             const followingIds = following?.map((item) => item.following_id) || [];
-            followingIds.push(user.id);
 
             const { data } = await supabase
                 .from('posts')
@@ -71,13 +71,16 @@ export default function FeedPage() {
             ) : posts.length === 0 ? (
                 <div className="text-center py-16 animate-fade-in">
                     <h2 className="text-lg mb-2" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>
-                        Your table is empty
+                        Your feed is empty
                     </h2>
-                    <p className="note-text text-sm mb-1">
-                        Follow some friends to see what they&apos;re making,
+                    <p className="note-text text-sm mb-4">
+                        Follow people to see their recipes here.
                     </p>
-                    <p className="note-text text-sm">
-                        or log your first cook.
+                    <Link href="/discover" className="btn-primary inline-block mb-3">
+                        Find Friends
+                    </Link>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)', fontFamily: "'DM Mono', monospace" }}>
+                        or <Link href="/post" style={{ color: 'var(--color-accent)' }}>log your first cook</Link>
                     </p>
                 </div>
             ) : (

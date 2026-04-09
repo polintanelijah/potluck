@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,6 +21,12 @@ export default function ProfilePage() {
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
     const [activeTab, setActiveTab] = useState('recipes');
+    const [showSettings, setShowSettings] = useState(false);
+    const [copied, setCopied] = useState(false);
+    const [editAvatarUrl, setEditAvatarUrl] = useState(null);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const settingsRef = useRef(null);
+    const fileInputRef = useRef(null);
     const { user, signOut, refreshProfile } = useAuth();
     const supabase = getSupabase();
 
@@ -60,6 +66,39 @@ export default function ProfilePage() {
             cancelled = true;
         };
     }, [supabase, user]);
+
+    useEffect(() => {
+        if (!showSettings) return;
+        function handleClickOutside(e) {
+            if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+                setShowSettings(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showSettings]);
+
+    async function handleAvatarSelect(e) {
+        const file = e.target.files?.[0];
+        if (!file || !user) return;
+
+        setUploadingAvatar(true);
+        try {
+            const ext = file.name.split('.').pop();
+            const filePath = `avatars/${user.id}/${Date.now()}.${ext}`;
+            const { error: uploadError } = await supabase.storage.from('images').upload(filePath, file);
+            if (uploadError) {
+                console.error('Avatar upload error:', uploadError);
+                setUploadingAvatar(false);
+                return;
+            }
+            const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
+            setEditAvatarUrl(publicUrl);
+        } catch (err) {
+            console.error('Avatar upload exception:', err);
+        }
+        setUploadingAvatar(false);
+    }
 
     function getRecipeImage(recipe) {
         if (recipe.image_url) return recipe.image_url;
@@ -111,13 +150,18 @@ export default function ProfilePage() {
             }
         }
 
+        const updates = {
+            name: editName.trim(),
+            username: cleanUsername,
+            bio: editBio.trim(),
+        };
+        if (editAvatarUrl !== null) {
+            updates.avatar_url = editAvatarUrl;
+        }
+
         const { error } = await supabase
             .from('profiles')
-            .update({
-                name: editName.trim(),
-                username: cleanUsername,
-                bio: editBio.trim(),
-            })
+            .update(updates)
             .eq('id', user.id);
 
         if (error) {
@@ -132,16 +176,85 @@ export default function ProfilePage() {
         window.location.reload();
     }
 
+    async function handleShareProfile() {
+        setShowSettings(false);
+        const profileUrl = `${window.location.origin}/profile/${user.id}`;
+        const shareData = {
+            title: 'Potluck',
+            text: `Check out ${profileData?.name || 'my profile'} on Potluck!`,
+            url: profileUrl,
+        };
+
+        if (navigator.share) {
+            try {
+                await navigator.share(shareData);
+            } catch {
+                // User cancelled
+            }
+        } else {
+            await navigator.clipboard.writeText(profileUrl);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    }
+
     if (loading) return <div className="flex justify-center py-16"><div className="spinner" /></div>;
 
     return (
         <div className="px-4 py-6">
+            <div className="relative" ref={settingsRef}>
+                <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: 'var(--color-text-muted)', position: 'absolute', top: 0, right: 0, zIndex: 10 }}
+                >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="3" y1="6" x2="21" y2="6" />
+                        <line x1="3" y1="12" x2="21" y2="12" />
+                        <line x1="3" y1="18" x2="21" y2="18" />
+                    </svg>
+                </button>
+                {showSettings && (
+                    <div
+                        className="absolute right-0 top-8 rounded-md py-1 z-20"
+                        style={{ background: 'var(--color-bg-card)', border: '1px solid var(--color-border-light)', minWidth: '140px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                    >
+                        <button
+                            onClick={() => { setShowSettings(false); signOut(); }}
+                            className="w-full text-left px-4 py-2 text-sm transition-colors"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-accent)', fontFamily: "'DM Mono', monospace", fontSize: '0.8rem' }}
+                        >
+                            Log Out
+                        </button>
+                    </div>
+                )}
+            </div>
             <div className="flex items-start gap-4 mb-4">
-                <div className="avatar avatar-lg">
-                    {profileData?.avatar_url ? (
-                        <img src={profileData.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
-                    ) : (profileData?.name?.[0]?.toUpperCase() || '?')}
-                </div>
+                {editMode ? (
+                    <div className="relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                        <div className="avatar avatar-lg">
+                            {(editAvatarUrl || profileData?.avatar_url) ? (
+                                <img src={editAvatarUrl || profileData.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                            ) : (profileData?.name?.[0]?.toUpperCase() || '?')}
+                        </div>
+                        <div className="absolute inset-0 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.35)' }}>
+                            {uploadingAvatar ? (
+                                <div className="spinner" style={{ width: '20px', height: '20px' }} />
+                            ) : (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                                    <circle cx="12" cy="13" r="4" />
+                                </svg>
+                            )}
+                        </div>
+                        <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleAvatarSelect} />
+                    </div>
+                ) : (
+                    <div className="avatar avatar-lg">
+                        {profileData?.avatar_url ? (
+                            <img src={profileData.avatar_url} alt="" className="w-full h-full rounded-full object-cover" />
+                        ) : (profileData?.name?.[0]?.toUpperCase() || '?')}
+                    </div>
+                )}
                 <div className="flex-1">
                     {editMode ? (
                         <div className="space-y-2">
@@ -184,27 +297,30 @@ export default function ProfilePage() {
 
             {!editMode && (
                 <div className="flex gap-2 mb-5">
-                    <button onClick={() => setEditMode(true)} className="btn-secondary flex-1" style={{ fontSize: '0.8rem' }}>Edit Profile</button>
-                    <button onClick={signOut} className="btn-secondary" style={{ fontSize: '0.8rem', color: 'var(--color-accent)' }}>Log Out</button>
+                    <button onClick={() => { setShowSettings(false); setEditAvatarUrl(null); setEditMode(true); }} className="btn-secondary flex-1" style={{ fontSize: '0.8rem' }}>Edit Profile</button>
+                    <button onClick={handleShareProfile} className="btn-secondary flex-1" style={{ fontSize: '0.8rem' }}>{copied ? 'Copied!' : 'Share Profile'}</button>
                 </div>
             )}
 
             {!editMode && (
                 <div className="flex gap-0 mb-4 rounded-md overflow-hidden" style={{ border: '1px solid var(--color-border)' }}>
-                    <button onClick={() => setActiveTab('recipes')} className="flex-1 py-2.5 text-center transition-colors"
+                    <button onClick={() => { setShowSettings(false); setActiveTab('recipes'); }} className="flex-1 py-2.5 text-center transition-colors"
                         style={{ background: activeTab === 'recipes' ? 'var(--color-bg-card)' : 'transparent', borderRight: '1px solid var(--color-border)' }}>
                         <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{recipes.length}</p>
                         <p className="meta-label">Your Recipes</p>
+                        <div style={{ width: '60%', height: '2px', background: activeTab === 'recipes' ? 'var(--color-accent)' : 'transparent', margin: '4px auto 0', borderRadius: '1px', transition: 'background 0.15s ease' }} />
                     </button>
-                    <button onClick={() => setActiveTab('want_to_cook')} className="flex-1 py-2.5 text-center transition-colors"
+                    <button onClick={() => { setShowSettings(false); setActiveTab('want_to_cook'); }} className="flex-1 py-2.5 text-center transition-colors"
                         style={{ background: activeTab === 'want_to_cook' ? 'var(--color-bg-card)' : 'transparent', borderRight: '1px solid var(--color-border)' }}>
                         <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{wantToCook.length}</p>
                         <p className="meta-label">Want to Cook</p>
+                        <div style={{ width: '60%', height: '2px', background: activeTab === 'want_to_cook' ? 'var(--color-accent)' : 'transparent', margin: '4px auto 0', borderRadius: '1px', transition: 'background 0.15s ease' }} />
                     </button>
-                    <button onClick={() => setActiveTab('have_cooked')} className="flex-1 py-2.5 text-center transition-colors"
+                    <button onClick={() => { setShowSettings(false); setActiveTab('have_cooked'); }} className="flex-1 py-2.5 text-center transition-colors"
                         style={{ background: activeTab === 'have_cooked' ? 'var(--color-bg-card)' : 'transparent' }}>
                         <p className="font-bold text-sm" style={{ fontFamily: "'DM Mono', monospace" }}>{haveCooked.length}</p>
                         <p className="meta-label">Have Cooked</p>
+                        <div style={{ width: '60%', height: '2px', background: activeTab === 'have_cooked' ? 'var(--color-accent)' : 'transparent', margin: '4px auto 0', borderRadius: '1px', transition: 'background 0.15s ease' }} />
                     </button>
                 </div>
             )}

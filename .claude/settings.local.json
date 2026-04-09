@@ -14,7 +14,8 @@
       "Bash(node:*)",
       "WebFetch(domain:beliapp.com)",
       "WebSearch",
-      "WebFetch(domain:ixd.prattsi.org)"
+      "WebFetch(domain:ixd.prattsi.org)",
+      "Bash(ls:*)"
     ]
   },
   "hooks": {

@@ -23,6 +23,9 @@ export default function PostPage() {
     const [imagePreview, setImagePreview] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [extracting, setExtracting] = useState(false);
+    const [extractError, setExtractError] = useState('');
+    const [extractedData, setExtractedData] = useState(null);
     const [rankedRecipeId, setRankedRecipeId] = useState(null);
     const [rankedRecipeTitle, setRankedRecipeTitle] = useState('');
     const { user } = useAuth();
@@ -48,6 +51,38 @@ export default function PostPage() {
             cancelled = true;
         };
     }, [supabase]);
+
+    async function handleImportUrl() {
+        if (!url.trim()) return;
+
+        setExtracting(true);
+        setExtractError('');
+
+        try {
+            const res = await fetch('/api/scrape-recipe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url.trim() }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setExtractError(data.error || 'Could not extract recipe data');
+                return;
+            }
+
+            if (data.title) setTitle(data.title);
+            if (data.ingredients) setIngredients(data.ingredients);
+            if (data.instructions) setInstructions(data.instructions);
+            if (data.extracted_data) setExtractedData({ ...data.extracted_data, source_site: data.source_site });
+            else if (data.source_site) setExtractedData({ source_site: data.source_site });
+        } catch {
+            setExtractError('Something went wrong — check the URL and try again');
+        } finally {
+            setExtracting(false);
+        }
+    }
 
     function handleImageChange(e) {
         const file = e.target.files?.[0];
@@ -95,15 +130,23 @@ export default function PostPage() {
                     return;
                 }
 
+                const recipeInsert = {
+                    title: title.trim(),
+                    url: url.trim() || null,
+                    ingredients: normalizeRecipeText(ingredients),
+                    instructions: normalizeRecipeText(instructions),
+                    created_by: user.id,
+                };
+
+                if (extractedData) {
+                    const { source_site, ...metaFields } = extractedData;
+                    if (source_site) recipeInsert.source_site = source_site;
+                    if (Object.keys(metaFields).length > 0) recipeInsert.extracted_data = metaFields;
+                }
+
                 const { data: newRecipe, error: recipeError } = await supabase
                     .from('recipes')
-                    .insert({
-                        title: title.trim(),
-                        url: url.trim() || null,
-                        ingredients: normalizeRecipeText(ingredients),
-                        instructions: normalizeRecipeText(instructions),
-                        created_by: user.id,
-                    })
+                    .insert(recipeInsert)
                     .select()
                     .single();
 
@@ -303,7 +346,28 @@ export default function PostPage() {
                             </div>
                             <div>
                                 <label className="label">Recipe link (optional)</label>
-                                <input type="url" className="input-field" placeholder="Paste the URL if you found it online" value={url} onChange={(e) => setUrl(e.target.value)} />
+                                <input type="url" className="input-field" placeholder="Paste the URL if you found it online" value={url} onChange={(e) => { setUrl(e.target.value); setExtractError(''); }} />
+                                {url.trim() && (
+                                    <button
+                                        type="button"
+                                        onClick={handleImportUrl}
+                                        disabled={extracting}
+                                        className="mt-2 text-sm font-medium px-3 py-1.5 rounded-md transition-colors"
+                                        style={{
+                                            background: 'var(--color-ochre-glow)',
+                                            color: 'var(--color-ochre)',
+                                            border: '1px solid var(--color-ochre)',
+                                            cursor: extracting ? 'wait' : 'pointer',
+                                            opacity: extracting ? 0.7 : 1,
+                                            fontFamily: "'DM Mono', monospace",
+                                        }}
+                                    >
+                                        {extracting ? 'Importing…' : 'Import from URL'}
+                                    </button>
+                                )}
+                                {extractError && (
+                                    <p className="text-xs mt-1.5" style={{ color: 'var(--color-danger)' }}>{extractError}</p>
+                                )}
                             </div>
                             <div>
                                 <label className="label">Ingredients</label>

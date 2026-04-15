@@ -68,7 +68,7 @@ app/
   (main)/                  # Authenticated routes (layout adds BottomNav)
     feed/                  # Social feed (follow-filtered)
     discover/              # Non-followed content
-    post/                  # Log a cook / add recipe
+    post/                  # Log a cook / add recipe (with URL import)
     profile/               # Current user profile
     profile/[id]/          # Other user's profile
     recipe/[id]/           # Recipe detail
@@ -92,7 +92,9 @@ lib/
 middleware.js               # Auth refresh (3s timeout), route guards
 ```
 
-**No API route handlers exist.** All data operations use direct Supabase client calls.
+### API Routes
+
+- `app/api/scrape-recipe/route.js` — POST endpoint for server-side recipe extraction from URLs (JSON-LD parsing). Used by the "Import from URL" button in the new-recipe form.
 
 ### SQL Files
 

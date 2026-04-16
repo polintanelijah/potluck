@@ -57,38 +57,6 @@ export default function PostPage() {
         };
     }, [supabase]);
 
-    async function handleImportUrl() {
-        if (!url.trim()) return;
-
-        setExtracting(true);
-        setExtractError('');
-
-        try {
-            const res = await fetch('/api/scrape-recipe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: url.trim() }),
-            });
-
-            const data = await res.json();
-
-            if (!res.ok) {
-                setExtractError(data.error || 'Could not extract recipe data');
-                return;
-            }
-
-            if (data.title) setTitle(data.title);
-            if (data.ingredients) setIngredients(data.ingredients);
-            if (data.instructions) setInstructions(data.instructions);
-            if (data.extracted_data) setExtractedData({ ...data.extracted_data, source_site: data.source_site });
-            else if (data.source_site) setExtractedData({ source_site: data.source_site });
-        } catch {
-            setExtractError('Something went wrong — check the URL and try again');
-        } finally {
-            setExtracting(false);
-        }
-    }
-
     function handleImageChange(e) {
         const file = e.target.files?.[0];
         if (file) {

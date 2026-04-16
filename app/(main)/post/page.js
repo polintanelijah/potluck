@@ -7,7 +7,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import RankingFlow from '@/components/RankingFlow';
 import { getBucketPriority, normalizeRecipeText } from '@/lib/rankings';
-import { formatRecipeField } from './actions';
+import { formatRecipeField, extractRecipeFromUrl } from './actions';
 
 export default function PostPage() {
     const [step, setStep] = useState(1);
@@ -28,6 +28,11 @@ export default function PostPage() {
     const [rankedRecipeTitle, setRankedRecipeTitle] = useState('');
     const [formatting, setFormatting] = useState({ ingredients: false, instructions: false });
     const [formatError, setFormatError] = useState({ ingredients: '', instructions: '' });
+    const [lastFormatted, setLastFormatted] = useState({ ingredients: '', instructions: '' });
+    const [extracting, setExtracting] = useState(false);
+    const [extractStatus, setExtractStatus] = useState('');
+    const [sourceSite, setSourceSite] = useState('');
+    const [lastExtractedUrl, setLastExtractedUrl] = useState('');
     const { user } = useAuth();
     const supabase = getSupabase();
     const router = useRouter();
@@ -96,6 +101,7 @@ export default function PostPage() {
                 const joined = res.lines.join('\n');
                 if (field === 'ingredients') setIngredients(joined);
                 else setInstructions(joined);
+                setLastFormatted((s) => ({ ...s, [field]: joined }));
             }
         } catch {
             setFormatError((s) => ({
@@ -104,6 +110,36 @@ export default function PostPage() {
             }));
         } finally {
             setFormatting((s) => ({ ...s, [field]: false }));
+        }
+    }
+
+    async function handleExtract(urlValue, { onlyIfEmpty }) {
+        const trimmed = (urlValue || '').trim();
+        if (!trimmed) return;
+        try { new URL(trimmed); } catch { return; }
+        if (onlyIfEmpty && (ingredients.trim() || instructions.trim())) return;
+
+        setExtracting(true);
+        setExtractStatus('');
+        try {
+            const res = await extractRecipeFromUrl(trimmed);
+            if (res?.error || !Array.isArray(res?.ingredients) || !Array.isArray(res?.instructions)) {
+                setExtractStatus('Couldn\u2019t auto-fill \u2014 you can still type it in.');
+                return;
+            }
+            const ingJoined = res.ingredients.join('\n');
+            const instJoined = res.instructions.join('\n');
+            setIngredients(ingJoined);
+            setInstructions(instJoined);
+            setLastFormatted({ ingredients: '', instructions: '' });
+            if (!title.trim() && res.title) setTitle(res.title);
+            setSourceSite(res.sourceSite || '');
+            setLastExtractedUrl(trimmed);
+            setExtractStatus(res.sourceSite ? `Pulled from ${res.sourceSite}` : 'Pulled successfully');
+        } catch {
+            setExtractStatus('Couldn\u2019t auto-fill \u2014 you can still type it in.');
+        } finally {
+            setExtracting(false);
         }
     }
 
@@ -130,6 +166,7 @@ export default function PostPage() {
                     .insert({
                         title: title.trim(),
                         url: url.trim() || null,
+                        source_site: sourceSite || null,
                         ingredients: normalizeRecipeText(ingredients),
                         instructions: normalizeRecipeText(instructions),
                         created_by: user.id,
@@ -333,63 +370,144 @@ export default function PostPage() {
                             </div>
                             <div>
                                 <label className="label">Recipe link (optional)</label>
-                                <input type="url" className="input-field" placeholder="Paste the URL if you found it online" value={url} onChange={(e) => setUrl(e.target.value)} />
+                                <input
+                                    type="url"
+                                    className="input-field"
+                                    placeholder="Paste the URL if you found it online"
+                                    value={url}
+                                    onChange={(e) => setUrl(e.target.value)}
+                                    onPaste={(e) => {
+                                        const pasted = e.clipboardData.getData('text');
+                                        queueMicrotask(() => handleExtract(pasted, { onlyIfEmpty: true }));
+                                    }}
+                                />
+                                <div className="flex items-center justify-between mt-1 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleExtract(url, { onlyIfEmpty: false })}
+                                        disabled={
+                                            extracting ||
+                                            !url.trim() ||
+                                            (lastExtractedUrl !== '' && url.trim() === lastExtractedUrl)
+                                        }
+                                        className="text-xs"
+                                        style={{
+                                            color: 'var(--color-accent)',
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            cursor:
+                                                extracting ||
+                                                !url.trim() ||
+                                                (lastExtractedUrl !== '' && url.trim() === lastExtractedUrl)
+                                                    ? 'default'
+                                                    : 'pointer',
+                                            opacity:
+                                                extracting ||
+                                                !url.trim() ||
+                                                (lastExtractedUrl !== '' && url.trim() === lastExtractedUrl)
+                                                    ? 0.5
+                                                    : 1,
+                                            fontFamily: "'DM Mono', monospace",
+                                        }}
+                                    >
+                                        {extracting
+                                            ? 'Pulling\u2026'
+                                            : lastExtractedUrl !== '' && url.trim() === lastExtractedUrl
+                                                ? '\u2713 Already pulled'
+                                                : '\u21B4 Pull from link'}
+                                    </button>
+                                    {extractStatus && (
+                                        <span
+                                            className="text-xs"
+                                            style={{
+                                                color: extractStatus.startsWith('Pulled')
+                                                    ? 'var(--color-text-muted)'
+                                                    : 'var(--color-danger)',
+                                            }}
+                                        >
+                                            {extractStatus}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <label className="label">Ingredients</label>
                                 <textarea className="input-field" placeholder="One ingredient per line" value={ingredients} onChange={(e) => setIngredients(e.target.value)} rows={4} />
-                                <div className="flex items-center justify-between mt-1 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleFormat('ingredients')}
-                                        disabled={formatting.ingredients || !ingredients.trim()}
-                                        className="text-xs"
-                                        style={{
-                                            color: 'var(--color-accent)',
-                                            background: 'none',
-                                            border: 'none',
-                                            padding: 0,
-                                            cursor: formatting.ingredients || !ingredients.trim() ? 'default' : 'pointer',
-                                            opacity: formatting.ingredients || !ingredients.trim() ? 0.5 : 1,
-                                            fontFamily: "'DM Mono', monospace",
-                                        }}
-                                    >
-                                        {formatting.ingredients ? 'Formatting…' : '✨ Format with AI'}
-                                    </button>
-                                    {formatError.ingredients && (
-                                        <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
-                                            {formatError.ingredients}
-                                        </span>
-                                    )}
-                                </div>
+                                {(() => {
+                                    const alreadyFormatted =
+                                        lastFormatted.ingredients !== '' && ingredients === lastFormatted.ingredients;
+                                    const disabled = formatting.ingredients || !ingredients.trim() || alreadyFormatted;
+                                    return (
+                                        <div className="flex items-center justify-between mt-1 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleFormat('ingredients')}
+                                                disabled={disabled}
+                                                className="text-xs"
+                                                style={{
+                                                    color: 'var(--color-accent)',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    padding: 0,
+                                                    cursor: disabled ? 'default' : 'pointer',
+                                                    opacity: disabled ? 0.5 : 1,
+                                                    fontFamily: "'DM Mono', monospace",
+                                                }}
+                                            >
+                                                {formatting.ingredients
+                                                    ? 'Formatting\u2026'
+                                                    : alreadyFormatted
+                                                        ? '\u2713 Already formatted'
+                                                        : '\u2728 Format with AI'}
+                                            </button>
+                                            {formatError.ingredients && (
+                                                <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                                                    {formatError.ingredients}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                             <div>
                                 <label className="label">Instructions</label>
                                 <textarea className="input-field" placeholder="One step per line" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={5} />
-                                <div className="flex items-center justify-between mt-1 gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => handleFormat('instructions')}
-                                        disabled={formatting.instructions || !instructions.trim()}
-                                        className="text-xs"
-                                        style={{
-                                            color: 'var(--color-accent)',
-                                            background: 'none',
-                                            border: 'none',
-                                            padding: 0,
-                                            cursor: formatting.instructions || !instructions.trim() ? 'default' : 'pointer',
-                                            opacity: formatting.instructions || !instructions.trim() ? 0.5 : 1,
-                                            fontFamily: "'DM Mono', monospace",
-                                        }}
-                                    >
-                                        {formatting.instructions ? 'Formatting…' : '✨ Format with AI'}
-                                    </button>
-                                    {formatError.instructions && (
-                                        <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
-                                            {formatError.instructions}
-                                        </span>
-                                    )}
-                                </div>
+                                {(() => {
+                                    const alreadyFormatted =
+                                        lastFormatted.instructions !== '' && instructions === lastFormatted.instructions;
+                                    const disabled = formatting.instructions || !instructions.trim() || alreadyFormatted;
+                                    return (
+                                        <div className="flex items-center justify-between mt-1 gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleFormat('instructions')}
+                                                disabled={disabled}
+                                                className="text-xs"
+                                                style={{
+                                                    color: 'var(--color-accent)',
+                                                    background: 'none',
+                                                    border: 'none',
+                                                    padding: 0,
+                                                    cursor: disabled ? 'default' : 'pointer',
+                                                    opacity: disabled ? 0.5 : 1,
+                                                    fontFamily: "'DM Mono', monospace",
+                                                }}
+                                            >
+                                                {formatting.instructions
+                                                    ? 'Formatting\u2026'
+                                                    : alreadyFormatted
+                                                        ? '\u2713 Already formatted'
+                                                        : '\u2728 Format with AI'}
+                                            </button>
+                                            {formatError.instructions && (
+                                                <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                                                    {formatError.instructions}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                             <button onClick={() => setStep(2)} className="btn-primary w-full" disabled={!title.trim()}>
                                 Next

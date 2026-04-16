@@ -144,7 +144,7 @@ export async function extractRecipeFromUrl(rawUrl) {
                 body = null;
             }
         }
-    } catch (err) {
+    } catch {
         // AbortError from the 5s timeout or a network error both mean we can't
         // reach the page directly — fall through to url_context.
         blocked = true;

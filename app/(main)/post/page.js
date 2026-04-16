@@ -24,9 +24,6 @@ export default function PostPage() {
     const [imagePreview, setImagePreview] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
-    const [extracting, setExtracting] = useState(false);
-    const [extractError, setExtractError] = useState('');
-    const [extractedData, setExtractedData] = useState(null);
     const [rankedRecipeId, setRankedRecipeId] = useState(null);
     const [rankedRecipeTitle, setRankedRecipeTitle] = useState('');
     const [formatting, setFormatting] = useState({ ingredients: false, instructions: false });
@@ -194,20 +191,6 @@ export default function PostPage() {
                     setError('Every recipe needs a name');
                     setSubmitting(false);
                     return;
-                }
-
-                const recipeInsert = {
-                    title: title.trim(),
-                    url: url.trim() || null,
-                    ingredients: normalizeRecipeText(ingredients),
-                    instructions: normalizeRecipeText(instructions),
-                    created_by: user.id,
-                };
-
-                if (extractedData) {
-                    const { source_site, ...metaFields } = extractedData;
-                    if (source_site) recipeInsert.source_site = source_site;
-                    if (Object.keys(metaFields).length > 0) recipeInsert.extracted_data = metaFields;
                 }
 
                 const { data: newRecipe, error: recipeError } = await supabase

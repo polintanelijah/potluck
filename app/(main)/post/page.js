@@ -24,6 +24,9 @@ export default function PostPage() {
     const [imagePreview, setImagePreview] = useState(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [extracting, setExtracting] = useState(false);
+    const [extractError, setExtractError] = useState('');
+    const [extractedData, setExtractedData] = useState(null);
     const [rankedRecipeId, setRankedRecipeId] = useState(null);
     const [rankedRecipeTitle, setRankedRecipeTitle] = useState('');
     const [formatting, setFormatting] = useState({ ingredients: false, instructions: false });
@@ -56,6 +59,38 @@ export default function PostPage() {
             cancelled = true;
         };
     }, [supabase]);
+
+    async function handleImportUrl() {
+        if (!url.trim()) return;
+
+        setExtracting(true);
+        setExtractError('');
+
+        try {
+            const res = await fetch('/api/scrape-recipe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: url.trim() }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) {
+                setExtractError(data.error || 'Could not extract recipe data');
+                return;
+            }
+
+            if (data.title) setTitle(data.title);
+            if (data.ingredients) setIngredients(data.ingredients);
+            if (data.instructions) setInstructions(data.instructions);
+            if (data.extracted_data) setExtractedData({ ...data.extracted_data, source_site: data.source_site });
+            else if (data.source_site) setExtractedData({ source_site: data.source_site });
+        } catch {
+            setExtractError('Something went wrong — check the URL and try again');
+        } finally {
+            setExtracting(false);
+        }
+    }
 
     function handleImageChange(e) {
         const file = e.target.files?.[0];
@@ -159,6 +194,20 @@ export default function PostPage() {
                     setError('Every recipe needs a name');
                     setSubmitting(false);
                     return;
+                }
+
+                const recipeInsert = {
+                    title: title.trim(),
+                    url: url.trim() || null,
+                    ingredients: normalizeRecipeText(ingredients),
+                    instructions: normalizeRecipeText(instructions),
+                    created_by: user.id,
+                };
+
+                if (extractedData) {
+                    const { source_site, ...metaFields } = extractedData;
+                    if (source_site) recipeInsert.source_site = source_site;
+                    if (Object.keys(metaFields).length > 0) recipeInsert.extracted_data = metaFields;
                 }
 
                 const { data: newRecipe, error: recipeError } = await supabase

@@ -19,6 +19,7 @@
 
 - `recipes` is the reusable recipe entity.
 - Recipes can be created manually now.
+- When a URL is provided, users can click "Import from URL" to auto-fill title, ingredients, and instructions from the page's JSON-LD structured data.
 - Ingredients and instructions are stored as JSON arrays.
 - Only the creator should edit a recipe.
 
@@ -94,4 +95,5 @@ Have Cooked renders the user's bucketed ranking list.
 - Search existing recipes first
 - Reuse an existing recipe when possible
 - Only create a new `recipes` row for truly new recipes
+- When creating a new recipe with a URL, offer "Import from URL" to auto-fill fields from the page
 - Logging a cook should create the post, the cooked relationship, and then the ranking flow

@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "app/(main)/post/page.js": {
+      "maxDuration": 30
+    }
+  }
+}

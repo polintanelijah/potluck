@@ -20,7 +20,14 @@ import {
     parseGeminiUrlContextResponse,
 } from '@/lib/recipe-scrape';
 
-const TIMEOUT_MS = 10_000;
+// Short timeout for the direct page fetch: data-center IPs are usually rejected
+// within 1-2s by Cloudflare/WAF, so 5s is enough to detect a block without
+// burning most of the function budget before url_context gets a turn.
+const TIMEOUT_FETCH_MS = 5_000;
+// Gemini text-parse call — just an API round-trip, 10s is fine.
+const TIMEOUT_GEMINI_MS = 10_000;
+// url_context needs Google to fetch the page then generate; give it more room.
+const TIMEOUT_URL_CONTEXT_MS = 20_000;
 const MAX_PAGE_BYTES = 512_000;
 const BROWSER_HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
@@ -63,7 +70,7 @@ export async function formatRecipeField(field, raw) {
     if (!apiKey) return { error: 'not_configured' };
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_GEMINI_MS);
 
     try {
         const res = await fetch(`${GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
@@ -119,7 +126,7 @@ export async function extractRecipeFromUrl(rawUrl) {
     let blocked = false;
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_FETCH_MS);
     try {
         const res = await fetch(parsedUrl.toString(), {
             method: 'GET',
@@ -137,8 +144,9 @@ export async function extractRecipeFromUrl(rawUrl) {
                 body = null;
             }
         }
-    } catch (err) {
-        if (err?.name === 'AbortError') return { error: 'timeout' };
+    } catch {
+        // AbortError from the 5s timeout or a network error both mean we can't
+        // reach the page directly — fall through to url_context.
         blocked = true;
     } finally {
         clearTimeout(timer);
@@ -163,7 +171,7 @@ export async function extractRecipeFromUrl(rawUrl) {
         const plainText = htmlToPlainText(body).slice(0, MAX_GEMINI_TEXT_LENGTH);
         if (plainText) {
             const geminiController = new AbortController();
-            const geminiTimer = setTimeout(() => geminiController.abort(), TIMEOUT_MS);
+            const geminiTimer = setTimeout(() => geminiController.abort(), TIMEOUT_GEMINI_MS);
             try {
                 const res = await fetch(`${URL_GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
                     method: 'POST',
@@ -186,7 +194,7 @@ export async function extractRecipeFromUrl(rawUrl) {
     // --- Step 4: Gemini url_context (Google fetches the URL, bypasses Cloudflare) ---
     if (apiKey) {
         const ctxController = new AbortController();
-        const ctxTimer = setTimeout(() => ctxController.abort(), TIMEOUT_MS);
+        const ctxTimer = setTimeout(() => ctxController.abort(), TIMEOUT_URL_CONTEXT_MS);
         try {
             const ctxRes = await fetch(`${URL_GEMINI_ENDPOINT}?key=${encodeURIComponent(apiKey)}`, {
                 method: 'POST',

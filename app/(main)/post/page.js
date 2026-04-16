@@ -7,6 +7,7 @@ import { getSupabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import RankingFlow from '@/components/RankingFlow';
 import { getBucketPriority, normalizeRecipeText } from '@/lib/rankings';
+import { formatRecipeField } from './actions';
 
 export default function PostPage() {
     const [step, setStep] = useState(1);
@@ -25,6 +26,8 @@ export default function PostPage() {
     const [error, setError] = useState('');
     const [rankedRecipeId, setRankedRecipeId] = useState(null);
     const [rankedRecipeTitle, setRankedRecipeTitle] = useState('');
+    const [formatting, setFormatting] = useState({ ingredients: false, instructions: false });
+    const [formatError, setFormatError] = useState({ ingredients: '', instructions: '' });
     const { user } = useAuth();
     const supabase = getSupabase();
     const router = useRouter();
@@ -74,6 +77,33 @@ export default function PostPage() {
         } catch (err) {
             console.error('Image upload exception:', err);
             return null;
+        }
+    }
+
+    async function handleFormat(field) {
+        const raw = field === 'ingredients' ? ingredients : instructions;
+        if (!raw.trim()) return;
+        setFormatting((s) => ({ ...s, [field]: true }));
+        setFormatError((s) => ({ ...s, [field]: '' }));
+        try {
+            const res = await formatRecipeField(field, raw);
+            if (res?.error || !Array.isArray(res?.lines)) {
+                setFormatError((s) => ({
+                    ...s,
+                    [field]: 'Formatting failed — your text was kept as-is.',
+                }));
+            } else {
+                const joined = res.lines.join('\n');
+                if (field === 'ingredients') setIngredients(joined);
+                else setInstructions(joined);
+            }
+        } catch {
+            setFormatError((s) => ({
+                ...s,
+                [field]: 'Formatting failed — your text was kept as-is.',
+            }));
+        } finally {
+            setFormatting((s) => ({ ...s, [field]: false }));
         }
     }
 
@@ -308,10 +338,58 @@ export default function PostPage() {
                             <div>
                                 <label className="label">Ingredients</label>
                                 <textarea className="input-field" placeholder="One ingredient per line" value={ingredients} onChange={(e) => setIngredients(e.target.value)} rows={4} />
+                                <div className="flex items-center justify-between mt-1 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleFormat('ingredients')}
+                                        disabled={formatting.ingredients || !ingredients.trim()}
+                                        className="text-xs"
+                                        style={{
+                                            color: 'var(--color-accent)',
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            cursor: formatting.ingredients || !ingredients.trim() ? 'default' : 'pointer',
+                                            opacity: formatting.ingredients || !ingredients.trim() ? 0.5 : 1,
+                                            fontFamily: "'DM Mono', monospace",
+                                        }}
+                                    >
+                                        {formatting.ingredients ? 'Formatting…' : '✨ Format with AI'}
+                                    </button>
+                                    {formatError.ingredients && (
+                                        <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                                            {formatError.ingredients}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <label className="label">Instructions</label>
                                 <textarea className="input-field" placeholder="One step per line" value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={5} />
+                                <div className="flex items-center justify-between mt-1 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleFormat('instructions')}
+                                        disabled={formatting.instructions || !instructions.trim()}
+                                        className="text-xs"
+                                        style={{
+                                            color: 'var(--color-accent)',
+                                            background: 'none',
+                                            border: 'none',
+                                            padding: 0,
+                                            cursor: formatting.instructions || !instructions.trim() ? 'default' : 'pointer',
+                                            opacity: formatting.instructions || !instructions.trim() ? 0.5 : 1,
+                                            fontFamily: "'DM Mono', monospace",
+                                        }}
+                                    >
+                                        {formatting.instructions ? 'Formatting…' : '✨ Format with AI'}
+                                    </button>
+                                    {formatError.instructions && (
+                                        <span className="text-xs" style={{ color: 'var(--color-danger)' }}>
+                                            {formatError.instructions}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                             <button onClick={() => setStep(2)} className="btn-primary w-full" disabled={!title.trim()}>
                                 Next

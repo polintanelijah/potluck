@@ -35,6 +35,7 @@ Run a single test file: `npx vitest run lib/rankings.test.js`
 The app requires these in `.env.local` (not committed):
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anonymous/public key
+- `GEMINI_API_KEY` — server-only. Powers the "Format with AI" button on `/post`. Get one from [aistudio.google.com](https://aistudio.google.com). Never prefix with `NEXT_PUBLIC_`. The Format button returns a `not_configured` error when this is missing.
 
 Supabase is managed in the hosted dashboard — do not run local Supabase CLI workflows.
 
